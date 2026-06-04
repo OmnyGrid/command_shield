@@ -1,11 +1,13 @@
 import '../capabilities/capability.dart';
 import '../capabilities/capability_detector.dart';
+import '../capabilities/command_knowledge_base.dart';
 import '../classification/effect.dart';
 import '../classification/effect_classifier.dart';
 import '../normalization/normalizer.dart';
 import '../parser/parse_result.dart';
 import '../security/security_analyzer.dart';
 import '../security/security_detector.dart';
+import '../security/security_level.dart';
 import 'command_analysis.dart';
 
 /// Orchestrates the post-parse stages of the pipeline:
@@ -20,14 +22,20 @@ final class Analyzer {
     CapabilityDetector? capabilityDetector,
     EffectClassifier? effectClassifier,
     SecurityAnalyzer? securityAnalyzer,
+    CommandKnowledgeBase? knowledgeBase,
   }) : _normalizer = normalizer ?? Normalizer.standard(),
+       _knowledgeBase = knowledgeBase ?? CommandKnowledgeBase.standard(),
        _capabilityDetector =
            capabilityDetector ??
-           CapabilityDetector(normalizer: normalizer ?? Normalizer.standard()),
+           CapabilityDetector(
+             normalizer: normalizer ?? Normalizer.standard(),
+             knowledgeBase: knowledgeBase,
+           ),
        _effectClassifier = effectClassifier ?? const EffectClassifier(),
        _securityAnalyzer = securityAnalyzer ?? SecurityAnalyzer();
 
   final Normalizer _normalizer;
+  final CommandKnowledgeBase _knowledgeBase;
   final CapabilityDetector _capabilityDetector;
   final EffectClassifier _effectClassifier;
   final SecurityAnalyzer _securityAnalyzer;
@@ -49,6 +57,15 @@ final class Analyzer {
         ? <CommandEffect>{}
         : _effectClassifier.classify(capabilities);
 
+    var knowledgeRisk = SecurityLevel.safe;
+    for (final inv in parseResult.invocations) {
+      if (inv.executable.isEmpty) continue;
+      final exe = _normalizer.normalize(inv.executable);
+      knowledgeRisk = knowledgeRisk.max(
+        _knowledgeBase.analyze(exe, inv.arguments).risk,
+      );
+    }
+
     final report = _securityAnalyzer.analyze(
       SecurityContext(
         raw: parseResult.raw,
@@ -68,6 +85,7 @@ final class Analyzer {
       effects: Set<CommandEffect>.unmodifiable(effects),
       securityLevel: report.level,
       findings: report.findings,
+      knowledgeRisk: knowledgeRisk,
     );
   }
 }

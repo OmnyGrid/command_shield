@@ -2,6 +2,7 @@ import 'package:meta/meta.dart' show immutable;
 
 import '../ast/command_node.dart';
 import '../capabilities/capability.dart';
+import '../capabilities/command_knowledge_base.dart';
 import '../classification/effect.dart';
 import '../parser/parse_diagnostic.dart';
 import '../security/security_finding.dart';
@@ -27,6 +28,7 @@ final class CommandAnalysis {
     required this.effects,
     required this.securityLevel,
     required this.findings,
+    this.knowledgeRisk = SecurityLevel.safe,
   });
 
   /// The original command string.
@@ -52,6 +54,12 @@ final class CommandAnalysis {
 
   /// The overall security severity.
   final SecurityLevel securityLevel;
+
+  /// The highest risk hint contributed by the command knowledge base across all
+  /// invocations (for example, a force push). This is advisory metadata derived
+  /// from the [CommandKnowledgeBase] and does **not** affect [securityLevel]
+  /// unless a `KnowledgeRiskDetector` is explicitly enabled.
+  final SecurityLevel knowledgeRisk;
 
   /// The aggregated security findings, sorted by descending severity.
   final List<SecurityFinding> findings;

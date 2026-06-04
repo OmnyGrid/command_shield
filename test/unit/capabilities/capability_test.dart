@@ -133,9 +133,15 @@ void main() {
 
     test('knowledge base is extensible', () {
       final kb = CommandKnowledgeBase(
-        extraExecutableCapabilities: {
-          'frobnicate': {CommandCapability.networkWrite},
-        },
+        plugins: const [
+          ListKnowledgePlugin('custom', [
+            CommandKnowledge(
+              executable: 'frobnicate',
+              category: KnowledgeCategory.other,
+              baseCapabilities: {CommandCapability.networkWrite},
+            ),
+          ]),
+        ],
       );
       final custom = CapabilityDetector(knowledgeBase: kb);
       expect(

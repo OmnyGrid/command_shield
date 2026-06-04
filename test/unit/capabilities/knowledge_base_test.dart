@@ -130,4 +130,106 @@ void main() {
       expect(caps('zzznotacommand', const []), isEmpty);
     });
   });
+
+  group('CommandKnowledgeBase.analyze', () {
+    test('unknown command is not known and is safe', () {
+      final r = kb.analyze('zzznotacommand', const []);
+      expect(r.isKnown, isFalse);
+      expect(r.knowledge, isNull);
+      expect(r.capabilities, isEmpty);
+      expect(r.risk, SecurityLevel.safe);
+    });
+
+    test('known command exposes its knowledge entry and category', () {
+      final r = kb.analyze('git', const ['status']);
+      expect(r.isKnown, isTrue);
+      expect(r.knowledge!.executable, 'git');
+      expect(r.knowledge!.category, KnowledgeCategory.versionControl);
+    });
+
+    test('git force push raises risk to medium with a note', () {
+      final r = kb.analyze('git', const ['push', '--force', 'origin', 'main']);
+      expect(r.capabilities, contains(CommandCapability.networkWrite));
+      expect(r.risk, SecurityLevel.mediumRisk);
+      expect(r.notes, isNotEmpty);
+    });
+
+    test('non-push force flag does not raise risk', () {
+      final r = kb.analyze('git', const ['checkout', '-f', 'main']);
+      expect(r.risk, SecurityLevel.safe);
+      expect(r.capabilities, isNot(contains(CommandCapability.networkWrite)));
+    });
+
+    test('package install is flagged medium risk', () {
+      expect(
+        kb.analyze('npm', const ['install', 'x']).risk,
+        SecurityLevel.mediumRisk,
+      );
+    });
+  });
+
+  group('subcommand matching skips leading flags', () {
+    test('git --no-pager push is still a push', () {
+      expect(
+        caps('git', ['--no-pager', 'push']),
+        contains(CommandCapability.networkWrite),
+      );
+    });
+
+    test('docker --debug push is still a push', () {
+      expect(
+        caps('docker', ['--debug', 'push', 'img']),
+        contains(CommandCapability.networkWrite),
+      );
+    });
+  });
+
+  group('newly covered commands', () {
+    test('dart pub get reads network and writes files', () {
+      final c = caps('dart', ['pub', 'get']);
+      expect(c, contains(CommandCapability.networkRead));
+      expect(c, contains(CommandCapability.writeFilesystem));
+    });
+
+    test('dart pub publish writes to the network', () {
+      expect(
+        caps('dart', ['pub', 'publish']),
+        contains(CommandCapability.networkWrite),
+      );
+    });
+
+    test('flutter run executes code', () {
+      expect(
+        caps('flutter', ['run']),
+        contains(CommandCapability.executePrograms),
+      );
+    });
+
+    test('tar reads and writes the filesystem', () {
+      final c = caps('tar', ['-xzf', 'a.tgz']);
+      expect(c, contains(CommandCapability.readFilesystem));
+      expect(c, contains(CommandCapability.writeFilesystem));
+    });
+
+    test('docker push writes to the network', () {
+      expect(
+        caps('docker', ['push', 'img']),
+        contains(CommandCapability.networkWrite),
+      );
+    });
+
+    test('gh accesses the network', () {
+      expect(
+        caps('gh', ['pr', 'create']),
+        contains(CommandCapability.networkRead),
+      );
+    });
+
+    test('cargo build executes programs', () {
+      expect(
+        caps('cargo', ['build']),
+        contains(CommandCapability.executePrograms),
+      );
+    });
+  });
 }
