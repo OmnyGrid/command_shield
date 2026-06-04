@@ -19,6 +19,11 @@ void main() {
         'dart',
         'git',
         'icacls',
+        'md5sum',
+        'gzip',
+        'openssl',
+        'psql',
+        'vim',
       ]) {
         expect(kb.knowledgeFor(exe), isNotNull, reason: '$exe should be known');
       }

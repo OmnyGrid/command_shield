@@ -15,8 +15,23 @@ enum KnowledgeCategory {
   /// Filesystem manipulation (`ls`, `cp`, `rm`, …).
   filesystem,
 
-  /// Archive and compression tools (`tar`, `zip`, `gzip`, …).
+  /// Archive and bundling tools (`tar`, `7z`, `cpio`, …).
   archive,
+
+  /// Single-stream compressors and zip tools (`gzip`, `zip`, `xz`, …).
+  compression,
+
+  /// Checksum and digest tools (`md5sum`, `sha256sum`, `cksum`, …).
+  hash,
+
+  /// Encryption, signing and encoding tools (`openssl`, `gpg`, `base64`, …).
+  crypto,
+
+  /// Database clients and dump/restore tools (`psql`, `mysql`, `sqlite3`, …).
+  database,
+
+  /// Interactive text editors (`vim`, `nano`, `emacs`, …).
+  editor,
 
   /// Software package managers (`npm`, `pip`, `apt`, `brew`, …).
   packageManager,
