@@ -1,0 +1,30 @@
+name: command_shield
+description: >-
+  Security-first command-line analysis: parse, normalize, classify, analyze and
+  policy-validate shell commands into ALLOW / REVIEW / DENY decisions without
+  ever executing them. Built for AI agents and sandboxed executors.
+version: 1.0.0
+homepage: https://github.com/OmnyGrid/command_shield
+repository: https://github.com/OmnyGrid/command_shield
+issue_tracker: https://github.com/OmnyGrid/command_shield/issues
+topics:
+  - security
+  - cli
+  - parser
+  - static-analysis
+  - sandbox
+
+environment:
+  sdk: ^3.10.0
+
+# This package runs everywhere Dart runs, including Flutter Web (analysis
+# only). Its only dependency is `meta`, a first-party, web-safe annotations
+# package with no runtime code.
+dependencies:
+  meta: ^1.16.0
+
+dev_dependencies:
+  coverage: ^1.11.0
+  dependency_validator: ^5.0.0
+  lints: ^6.1.0
+  test: ^1.31.1

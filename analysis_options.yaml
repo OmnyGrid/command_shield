@@ -1,0 +1,51 @@
+# Strict static-analysis configuration for command_shield.
+#
+# Builds on the pub.dev "recommended" lint set and turns on the stricter
+# language modes plus a curated set of additional rules suitable for a
+# security-focused, fully documented library.
+include: package:lints/recommended.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  errors:
+    # Treat missing documentation on public members as an error so the API
+    # stays fully documented.
+    public_member_api_docs: error
+    # Common foot-guns promoted to errors.
+    unused_import: error
+    unused_local_variable: error
+    dead_code: error
+
+linter:
+  rules:
+    - always_declare_return_types
+    - avoid_dynamic_calls
+    - avoid_returning_null_for_void
+    - avoid_slow_async_io
+    - avoid_type_to_string
+    - cancel_subscriptions
+    - comment_references
+    - directives_ordering
+    - join_return_with_assignment
+    - missing_whitespace_between_adjacent_strings
+    - no_adjacent_strings_in_list
+    - prefer_const_constructors
+    - prefer_const_constructors_in_immutables
+    - prefer_const_declarations
+    - prefer_final_in_for_each
+    - prefer_final_locals
+    - prefer_relative_imports
+    - public_member_api_docs
+    - require_trailing_commas
+    - sort_constructors_first
+    - sort_pub_dependencies
+    - throw_in_finally
+    - unawaited_futures
+    - unnecessary_await_in_return
+    - unnecessary_lambdas
+    - unnecessary_parenthesis
+    - use_enums
+    - use_super_parameters

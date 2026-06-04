@@ -1,0 +1,7 @@
+# Configuration for `dart run dependency_validator`.
+# These dev-only tooling packages are used from CI/scripts, not imported in
+# Dart source, so they are intentionally exempt from the "unused" check.
+ignore:
+  - coverage
+  - dependency_validator
+  - lints
