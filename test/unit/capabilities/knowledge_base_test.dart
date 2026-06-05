@@ -211,6 +211,43 @@ void main() {
       expect(c, contains(CommandCapability.writeFilesystem));
     });
 
+    test('md5sum reads the filesystem', () {
+      expect(
+        caps('md5sum', ['file']),
+        contains(CommandCapability.readFilesystem),
+      );
+    });
+
+    test('gzip reads and writes the filesystem', () {
+      final c = caps('gzip', ['file']);
+      expect(c, contains(CommandCapability.readFilesystem));
+      expect(c, contains(CommandCapability.writeFilesystem));
+    });
+
+    test('openssl s_client uses the network', () {
+      final c = caps('openssl', ['s_client', '-connect', 'host:443']);
+      expect(c, contains(CommandCapability.networkRead));
+      expect(c, contains(CommandCapability.networkWrite));
+    });
+
+    test('psql uses the network', () {
+      final c = caps('psql', ['-h', 'db', '-c', 'select 1']);
+      expect(c, contains(CommandCapability.networkRead));
+      expect(c, contains(CommandCapability.networkWrite));
+    });
+
+    test('sqlite3 reads and writes a local database file', () {
+      final c = caps('sqlite3', ['db.sqlite']);
+      expect(c, contains(CommandCapability.readFilesystem));
+      expect(c, contains(CommandCapability.writeFilesystem));
+    });
+
+    test('vim reads and writes the filesystem', () {
+      final c = caps('vim', ['file']);
+      expect(c, contains(CommandCapability.readFilesystem));
+      expect(c, contains(CommandCapability.writeFilesystem));
+    });
+
     test('docker push writes to the network', () {
       expect(
         caps('docker', ['push', 'img']),

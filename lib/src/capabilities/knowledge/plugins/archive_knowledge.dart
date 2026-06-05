@@ -2,11 +2,12 @@ import '../../capability.dart';
 import '../command_knowledge.dart';
 import '../command_knowledge_plugin.dart';
 
-/// Knowledge about archive and compression tools.
+/// Knowledge about archive and bundling tools.
 ///
 /// These both read inputs and write outputs, so they carry read + write
 /// filesystem capabilities; extraction-only or list-only modes are still
-/// conservatively reported as read + write.
+/// conservatively reported as read + write. Single-stream compressors live in
+/// the compression plugin.
 final class ArchiveKnowledge implements CommandKnowledgePlugin {
   /// Creates the archive knowledge plugin.
   const ArchiveKnowledge();
@@ -16,26 +17,11 @@ final class ArchiveKnowledge implements CommandKnowledgePlugin {
 
   @override
   List<CommandKnowledge> get entries => [
-    for (final tool in const [
-      'tar',
-      'zip',
-      'unzip',
-      'gzip',
-      'gunzip',
-      'bzip2',
-      'bunzip2',
-      'xz',
-      'unxz',
-      'zstd',
-      '7z',
-      '7za',
-      'compress',
-      'uncompress',
-    ])
+    for (final tool in const ['tar', '7z', '7za', 'cpio', 'ar', 'pax'])
       CommandKnowledge(
         executable: tool,
         category: KnowledgeCategory.archive,
-        description: 'Archive/compression tool (reads inputs, writes outputs).',
+        description: 'Archive/bundling tool (reads inputs, writes outputs).',
         baseCapabilities: const {
           CommandCapability.readFilesystem,
           CommandCapability.writeFilesystem,
