@@ -1,4 +1,4 @@
-## 1.1.1
+## 1.1.0
 
 ### Tests
 
@@ -16,11 +16,9 @@
   alias, `/c` case-insensitivity, and that `-EncodedCommand`/`-enc` stay
   un-recursed.
 
-## 1.1.0
-
-Recursive analysis of inline interpreter sub-commands.
-
 ### Added
+
+- Recursive analysis of inline interpreter sub-commands.
 
 - Inline-execution sub-commands are now parsed into a nested AST and analyzed
   recursively. A command string passed to an interpreter via an inline flag —
