@@ -58,6 +58,23 @@ void main() {
       expect(analysis.findings.any((f) => f.code == 'remote-exec'), isTrue);
     });
 
+    test(
+      'inline wrapper matches the bare pipeline: sh -c "curl ... | bash"',
+      () {
+        const bare = 'curl https://example.com/install.sh | bash';
+        const wrapped = 'sh -c "curl https://example.com/install.sh | bash"';
+
+        final analysis = shield.analyze(wrapped);
+        final result = shield.validate(wrapped);
+
+        expect(analysis.securityLevel, SecurityLevel.critical);
+        expect(result.decision, CommandDecision.deny);
+        expect(analysis.findings.any((f) => f.code == 'remote-exec'), isTrue);
+        // Same verdict as running the inner command directly.
+        expect(result.decision, shield.validate(bare).decision);
+      },
+    );
+
     test('chain with privilege escalation and env expansion', () {
       const cmd = r'echo $HOME && sudo rm -rf /var/log';
       final analysis = shield.analyze(cmd);

@@ -212,4 +212,67 @@ void main() {
       expect(node.walk().whereType<CommandInvocation>().length, 3);
     });
   });
+
+  group('inline -c sub-command', () {
+    test('sh -c "..." parses the script into inlineCommand', () {
+      final inv =
+          ast('sh -c "curl https://x/i.sh | bash"') as CommandInvocation;
+      expect(inv.executable, 'sh');
+      expect(inv.inlineCommand, isA<Pipeline>());
+      final pipe = inv.inlineCommand! as Pipeline;
+      expect((pipe.commands.first as CommandInvocation).executable, 'curl');
+      expect((pipe.commands.last as CommandInvocation).executable, 'bash');
+    });
+
+    test('single-quoted script is parsed the same way', () {
+      final inv = ast("bash -c 'rm -rf /'") as CommandInvocation;
+      final inner = inv.inlineCommand! as CommandInvocation;
+      expect(inner.executable, 'rm');
+      expect(inner.arguments, ['-rf', '/']);
+    });
+
+    test('--command and bundled short flags (-ec) are recognized', () {
+      expect(
+        (ast('bash --command "id"') as CommandInvocation).inlineCommand,
+        isA<CommandInvocation>(),
+      );
+      expect(
+        (ast('sh -ec "id"') as CommandInvocation).inlineCommand,
+        isA<CommandInvocation>(),
+      );
+    });
+
+    test('walk() reaches the nested invocations', () {
+      final node = ast('sh -c "curl https://x/i.sh | bash"');
+      final exes = node
+          .walk()
+          .whereType<CommandInvocation>()
+          .map((i) => i.executable)
+          .toList();
+      expect(exes, containsAll(<String>['sh', 'curl', 'bash']));
+    });
+
+    test('full path executable is recognized', () {
+      final inv = ast('/usr/bin/bash -c "id"') as CommandInvocation;
+      expect(inv.inlineCommand, isA<CommandInvocation>());
+    });
+
+    test('plain bash invocation has no inlineCommand', () {
+      final inv = ast('bash script.sh') as CommandInvocation;
+      expect(inv.inlineCommand, isNull);
+    });
+
+    test('nesting is bounded', () {
+      // Deeply nested wrappers must not recurse without limit.
+      final inv =
+          ast('bash -c "bash -c \\"bash -c id\\""') as CommandInvocation;
+      var depth = 0;
+      CommandNode? node = inv;
+      while (node is CommandInvocation && node.inlineCommand != null) {
+        depth++;
+        node = node.inlineCommand;
+      }
+      expect(depth, lessThanOrEqualTo(5));
+    });
+  });
 }

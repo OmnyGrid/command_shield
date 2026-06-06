@@ -71,6 +71,7 @@ final class CommandInvocation extends CommandNode {
     this.redirections = const <RedirectionNode>[],
     this.substitutions = const <CommandSubstitution>[],
     this.environmentReferences = const <EnvironmentVariableReference>[],
+    this.inlineCommand,
   });
 
   /// The program being invoked, exactly as written (not normalized).
@@ -88,6 +89,14 @@ final class CommandInvocation extends CommandNode {
   /// Environment-variable references that appeared within this invocation.
   final List<EnvironmentVariableReference> environmentReferences;
 
+  /// The command parsed from an inline-execution argument, if this invocation
+  /// runs an interpreter on a command string — e.g. the `curl ... | bash` of
+  /// `sh -c "curl ... | bash"`, or `cmd /c ...`, `powershell -Command ...`.
+  ///
+  /// `null` for ordinary invocations. Being a child node, it is visited by
+  /// [walk], so the nested command is analyzed like any other command.
+  final CommandNode? inlineCommand;
+
   /// All tokens of the invocation: [executable] followed by [arguments].
   List<String> get tokens => <String>[executable, ...arguments];
 
@@ -96,6 +105,7 @@ final class CommandInvocation extends CommandNode {
     ...redirections,
     ...substitutions,
     ...environmentReferences,
+    ?inlineCommand,
   ];
 
   @override
@@ -105,7 +115,8 @@ final class CommandInvocation extends CommandNode {
       _listEquals(other.arguments, arguments) &&
       _listEquals(other.redirections, redirections) &&
       _listEquals(other.substitutions, substitutions) &&
-      _listEquals(other.environmentReferences, environmentReferences);
+      _listEquals(other.environmentReferences, environmentReferences) &&
+      other.inlineCommand == inlineCommand;
 
   @override
   int get hashCode => Object.hash(
@@ -114,6 +125,7 @@ final class CommandInvocation extends CommandNode {
     Object.hashAll(redirections),
     Object.hashAll(substitutions),
     Object.hashAll(environmentReferences),
+    inlineCommand,
   );
 
   @override
@@ -121,7 +133,8 @@ final class CommandInvocation extends CommandNode {
       'CommandInvocation($executable, args: $arguments'
       '${redirections.isEmpty ? '' : ', redirs: $redirections'}'
       '${substitutions.isEmpty ? '' : ', subs: $substitutions'}'
-      '${environmentReferences.isEmpty ? '' : ', env: $environmentReferences'})';
+      '${environmentReferences.isEmpty ? '' : ', env: $environmentReferences'}'
+      '${inlineCommand == null ? '' : ', inline: $inlineCommand'})';
 }
 
 /// A pipeline of commands connected by `|`, where each command's standard

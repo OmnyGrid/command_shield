@@ -1,8 +1,12 @@
 import '../ast/command_node.dart';
 import '../syntax.dart';
 import 'command_parser.dart';
+import 'inline_exec.dart';
 import 'parse_diagnostic.dart';
 import 'parse_result.dart';
+
+/// The maximum interpreter-nesting depth re-parsed for inline `/c` arguments.
+const int _maxInlineDepth = 5;
 
 /// Parser for the Windows Command Prompt (`cmd.exe`) batch syntax.
 ///
@@ -20,7 +24,7 @@ final class WindowsCmdParser extends CommandParser {
   ParseResult parse(String raw) {
     final diagnostics = <ParseDiagnostic>[];
     final tokens = _CmdTokenizer(raw, diagnostics).tokenize();
-    final ast = _CmdTokenParser(tokens, diagnostics).parse();
+    final ast = _CmdTokenParser(tokens, diagnostics, depth: 0).parse();
     if (ast == null) {
       diagnostics.add(const ParseDiagnostic.info('Empty command'));
     }
@@ -177,10 +181,13 @@ class _CmdTokenizer {
 }
 
 class _CmdTokenParser {
-  _CmdTokenParser(this.tokens, this.diagnostics);
+  _CmdTokenParser(this.tokens, this.diagnostics, {required this.depth});
 
   final List<_CmdToken> tokens;
   final List<ParseDiagnostic> diagnostics;
+
+  /// How many interpreter `/c` boundaries deep this parser is nested.
+  final int depth;
   int _i = 0;
 
   bool get _atEnd => _i >= tokens.length;
@@ -266,11 +273,32 @@ class _CmdTokenParser {
       break;
     }
     if (words.isEmpty) return null;
+    final executable = words.first.value;
+    final arguments = words.skip(1).map((t) => t.value).toList(growable: false);
     return CommandInvocation(
-      executable: words.first.value,
-      arguments: words.skip(1).map((t) => t.value).toList(growable: false),
+      executable: executable,
+      arguments: arguments,
       redirections: redirections,
       environmentReferences: envs,
+      inlineCommand: _parseInlineCommand(executable, arguments),
     );
+  }
+
+  /// Re-parses the inline command string of `cmd /c ...`/`cmd /k ...` into a
+  /// nested AST. In `cmd`, everything after `/c` is the command, so the
+  /// remaining arguments are rejoined before re-parsing.
+  CommandNode? _parseInlineCommand(String executable, List<String> arguments) {
+    if (depth >= _maxInlineDepth) return null;
+    final index = inlineScriptArgIndex(executable, arguments);
+    if (index == null) return null;
+    final script = arguments.sublist(index).join(' ');
+    if (script.isEmpty) return null;
+    final innerDiagnostics = <ParseDiagnostic>[];
+    final innerTokens = _CmdTokenizer(script, innerDiagnostics).tokenize();
+    return _CmdTokenParser(
+      innerTokens,
+      innerDiagnostics,
+      depth: depth + 1,
+    ).parse();
   }
 }
