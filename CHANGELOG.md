@@ -1,3 +1,21 @@
+## 1.1.1
+
+### Tests
+
+- Added parser coverage for commands that combine `|` with `&&`/`||`, asserting
+  the full AST structure: pipelines bind tighter than chain operators, runs of
+  the same chain operator flatten, and different operators nest left-to-right
+  (e.g. `a | b && c | d`, `a | b && c || d`, `curl … | bash && echo done`).
+- Added `CommandSyntax.generic` coverage confirming operators are left
+  uninterpreted — `|`, `&&` and `||` survive as literal argument tokens on a
+  single flat invocation rather than producing `Pipeline`/`CommandChain` nodes.
+- Added inline sub-command parser coverage for PowerShell and Windows CMD —
+  previously only POSIX `sh -c "…"` was tested. `powershell -Command "…"` and
+  `cmd /c|/k …` now assert the re-parsed `inlineCommand` AST (incl. inner
+  pipelines), `walk()` reaching nested invocations, depth bounding, the `pwsh`
+  alias, `/c` case-insensitivity, and that `-EncodedCommand`/`-enc` stay
+  un-recursed.
+
 ## 1.1.0
 
 Recursive analysis of inline interpreter sub-commands.
