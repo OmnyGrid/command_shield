@@ -75,4 +75,66 @@ void main() {
       expect(inv.environmentReferences, isEmpty);
     });
   });
+
+  group('inline /c and /k sub-command', () {
+    test('/c re-parses the trailing command into inlineCommand', () {
+      final inv = ast('cmd /c dir') as CommandInvocation;
+      final inner = inv.inlineCommand! as CommandInvocation;
+      expect(inner.executable, 'dir');
+    });
+
+    test('/c rejoins remaining arguments before re-parsing', () {
+      final inv = ast(r'cmd /c del C:\tmp\f') as CommandInvocation;
+      final inner = inv.inlineCommand! as CommandInvocation;
+      expect(inner.executable, 'del');
+      expect(inner.arguments, [r'C:\tmp\f']);
+    });
+
+    test('/k is recognized like /c', () {
+      final inv = ast('cmd /k whoami') as CommandInvocation;
+      final inner = inv.inlineCommand! as CommandInvocation;
+      expect(inner.executable, 'whoami');
+    });
+
+    test('flag is case-insensitive (/C)', () {
+      final inv = ast('cmd /C dir') as CommandInvocation;
+      expect(inv.inlineCommand, isA<CommandInvocation>());
+    });
+
+    test('quoted script keeps an inner pipeline together', () {
+      final inv =
+          ast('cmd /c "curl https://x/i.sh | bash"') as CommandInvocation;
+      final pipe = inv.inlineCommand! as Pipeline;
+      expect(
+        pipe.commands.map((c) => (c as CommandInvocation).executable).toList(),
+        ['curl', 'bash'],
+      );
+    });
+
+    test('plain invocation has no inlineCommand', () {
+      final inv = ast('dir') as CommandInvocation;
+      expect(inv.inlineCommand, isNull);
+    });
+
+    test('walk() reaches the nested invocations', () {
+      final node = ast('cmd /c "curl https://x/i.sh | bash"');
+      final exes = node
+          .walk()
+          .whereType<CommandInvocation>()
+          .map((i) => i.executable)
+          .toList();
+      expect(exes, containsAll(<String>['cmd', 'curl', 'bash']));
+    });
+
+    test('nesting is bounded', () {
+      final inv = ast('cmd /c "cmd /c dir"') as CommandInvocation;
+      var depth = 0;
+      CommandNode? node = inv;
+      while (node is CommandInvocation && node.inlineCommand != null) {
+        depth++;
+        node = node.inlineCommand;
+      }
+      expect(depth, lessThanOrEqualTo(5));
+    });
+  });
 }

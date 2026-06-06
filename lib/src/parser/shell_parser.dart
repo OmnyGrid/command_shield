@@ -1,8 +1,13 @@
 import '../ast/command_node.dart';
 import '../syntax.dart';
 import 'command_parser.dart';
+import 'inline_exec.dart';
 import 'parse_diagnostic.dart';
 import 'parse_result.dart';
+
+/// The maximum interpreter-nesting depth re-parsed for inline `-c` arguments,
+/// guarding against pathological inputs like `bash -c "bash -c \"...\""`.
+const int _maxInlineDepth = 5;
 
 /// Shared implementation for POSIX/Bash-family shells.
 ///
@@ -23,7 +28,7 @@ abstract base class ShellParser extends CommandParser {
     final diagnostics = <ParseDiagnostic>[];
     final tokenizer = _ShellTokenizer(raw, diagnostics);
     final tokens = tokenizer.tokenize();
-    final parser = _TokenParser(tokens, diagnostics);
+    final parser = _TokenParser(tokens, diagnostics, depth: 0);
     final ast = parser.parseScript();
     if (ast == null) {
       diagnostics.add(const ParseDiagnostic.info('Empty command'));
@@ -434,7 +439,7 @@ class _ShellTokenizer {
   void _addSubstitution(String inner, List<CommandSubstitution> subs) {
     final innerDiagnostics = <ParseDiagnostic>[];
     final tokens = _ShellTokenizer(inner, innerDiagnostics).tokenize();
-    final node = _TokenParser(tokens, innerDiagnostics).parseScript();
+    final node = _TokenParser(tokens, innerDiagnostics, depth: 0).parseScript();
     subs.add(
       CommandSubstitution(node ?? const CommandInvocation(executable: '')),
     );
@@ -444,10 +449,13 @@ class _ShellTokenizer {
 // --- Recursive-descent parser over tokens --------------------------------
 
 class _TokenParser {
-  _TokenParser(this.tokens, this.diagnostics);
+  _TokenParser(this.tokens, this.diagnostics, {required this.depth});
 
   final List<_Token> tokens;
   final List<ParseDiagnostic> diagnostics;
+
+  /// How many interpreter `-c` boundaries deep this parser is nested.
+  final int depth;
   int _i = 0;
 
   bool get _atEnd => _i >= tokens.length;
@@ -593,12 +601,33 @@ class _TokenParser {
       );
     }
 
+    final executable = words.first.value;
+    final arguments = words.skip(1).map((t) => t.value).toList(growable: false);
     return CommandInvocation(
-      executable: words.first.value,
-      arguments: words.skip(1).map((t) => t.value).toList(growable: false),
+      executable: executable,
+      arguments: arguments,
       redirections: redirections,
       substitutions: subs,
       environmentReferences: envs,
+      inlineCommand: _parseInlineCommand(executable, arguments),
     );
+  }
+
+  /// Re-parses the inline command string of `sh -c "..."`/`bash -c '...'` into
+  /// a nested AST, or returns `null` when this is not an inline-exec call (or
+  /// the nesting limit is reached).
+  CommandNode? _parseInlineCommand(String executable, List<String> arguments) {
+    if (depth >= _maxInlineDepth) return null;
+    final index = inlineScriptArgIndex(executable, arguments);
+    if (index == null) return null;
+    final script = arguments[index];
+    if (script.isEmpty) return null;
+    final innerDiagnostics = <ParseDiagnostic>[];
+    final innerTokens = _ShellTokenizer(script, innerDiagnostics).tokenize();
+    return _TokenParser(
+      innerTokens,
+      innerDiagnostics,
+      depth: depth + 1,
+    ).parseScript();
   }
 }

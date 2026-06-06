@@ -1,8 +1,12 @@
 import '../ast/command_node.dart';
 import '../syntax.dart';
 import 'command_parser.dart';
+import 'inline_exec.dart';
 import 'parse_diagnostic.dart';
 import 'parse_result.dart';
+
+/// The maximum interpreter-nesting depth re-parsed for inline `-Command` args.
+const int _maxInlineDepth = 5;
 
 /// Parser for Microsoft PowerShell.
 ///
@@ -21,7 +25,7 @@ final class PowerShellParser extends CommandParser {
   ParseResult parse(String raw) {
     final diagnostics = <ParseDiagnostic>[];
     final tokens = _PsTokenizer(raw, diagnostics).tokenize();
-    final ast = _PsTokenParser(tokens, diagnostics).parse();
+    final ast = _PsTokenParser(tokens, diagnostics, depth: 0).parse();
     if (ast == null) {
       diagnostics.add(const ParseDiagnostic.info('Empty command'));
     }
@@ -296,7 +300,7 @@ class _PsTokenizer {
   void _addSub(String inner, List<CommandSubstitution> subs) {
     final innerDiag = <ParseDiagnostic>[];
     final tokens = _PsTokenizer(inner, innerDiag).tokenize();
-    final node = _PsTokenParser(tokens, innerDiag).parse();
+    final node = _PsTokenParser(tokens, innerDiag, depth: 0).parse();
     subs.add(
       CommandSubstitution(node ?? const CommandInvocation(executable: '')),
     );
@@ -304,10 +308,13 @@ class _PsTokenizer {
 }
 
 class _PsTokenParser {
-  _PsTokenParser(this.tokens, this.diagnostics);
+  _PsTokenParser(this.tokens, this.diagnostics, {required this.depth});
 
   final List<_PsToken> tokens;
   final List<ParseDiagnostic> diagnostics;
+
+  /// How many interpreter `-Command` boundaries deep this parser is nested.
+  final int depth;
   int _i = 0;
 
   bool get _atEnd => _i >= tokens.length;
@@ -418,12 +425,28 @@ class _PsTokenParser {
       break;
     }
     if (words.isEmpty) return null;
+    final executable = words.first.value;
+    final arguments = words.skip(1).map((t) => t.value).toList(growable: false);
     return CommandInvocation(
-      executable: words.first.value,
-      arguments: words.skip(1).map((t) => t.value).toList(growable: false),
+      executable: executable,
+      arguments: arguments,
       redirections: redirections,
       substitutions: subs,
       environmentReferences: envs,
+      inlineCommand: _parseInlineCommand(executable, arguments),
     );
+  }
+
+  /// Re-parses the inline command string of `powershell -Command "..."` into a
+  /// nested AST. `-EncodedCommand` is excluded by [inlineScriptArgIndex].
+  CommandNode? _parseInlineCommand(String executable, List<String> arguments) {
+    if (depth >= _maxInlineDepth) return null;
+    final index = inlineScriptArgIndex(executable, arguments);
+    if (index == null) return null;
+    final script = arguments[index];
+    if (script.isEmpty) return null;
+    final innerDiag = <ParseDiagnostic>[];
+    final innerTokens = _PsTokenizer(script, innerDiag).tokenize();
+    return _PsTokenParser(innerTokens, innerDiag, depth: depth + 1).parse();
   }
 }
