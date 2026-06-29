@@ -1,3 +1,4 @@
+import '../../../security/security_level.dart';
 import '../../capability.dart';
 import '../command_knowledge.dart';
 import '../command_knowledge_plugin.dart';
@@ -92,8 +93,57 @@ final class NetworkKnowledge implements CommandKnowledgePlugin {
       ],
     ),
 
-    // --- cloud / platform CLIs (network + can execute remote actions) ---
-    for (final c in const ['gh', 'aws', 'gcloud', 'az', 'kubectl', 'helm'])
+    // --- major cloud CLIs: light destructive-token risk elevation ---
+    for (final c in const ['aws', 'gcloud', 'az'])
+      CommandKnowledge(
+        executable: c,
+        category: _net,
+        description: 'Cloud platform CLI (network access; may run actions).',
+        baseCapabilities: const {
+          CommandCapability.networkRead,
+          CommandCapability.networkWrite,
+        },
+        argumentRules: const [
+          ArgumentRule(
+            TokenPresent({
+              'rm',
+              'delete',
+              'rb',
+              'destroy',
+              'remove',
+              'terminate-instances',
+            }),
+            {CommandCapability.networkWrite},
+            risk: SecurityLevel.mediumRisk,
+            description: 'Deletes/terminates a cloud resource.',
+          ),
+        ],
+      ),
+
+    // --- other cloud / platform CLIs (network + can run remote actions) ---
+    for (final c in const [
+      'gh',
+      'helm',
+      'doctl',
+      'flyctl',
+      'fly',
+      'heroku',
+      'vercel',
+      'netlify',
+      'wrangler',
+      'supabase',
+      'firebase',
+      'gsutil',
+      'bq',
+      'eksctl',
+      's3cmd',
+      'linode-cli',
+      'ibmcloud',
+      'oci',
+      'scw',
+      'civo',
+      'railway',
+    ])
       CommandKnowledge(
         executable: c,
         category: _net,
@@ -103,6 +153,90 @@ final class NetworkKnowledge implements CommandKnowledgePlugin {
           CommandCapability.networkWrite,
         },
       ),
+
+    // --- object-store / sync clients (network both ways + local files) ---
+    for (final c in const ['rclone', 'mc'])
+      CommandKnowledge(
+        executable: c,
+        category: _net,
+        description: 'Object-storage sync client.',
+        baseCapabilities: const {
+          CommandCapability.networkRead,
+          CommandCapability.networkWrite,
+          CommandCapability.readFilesystem,
+        },
+      ),
+
+    // --- read-only network inspection / diagnostics ---
+    ...simpleEntries(
+      const [
+        'ip',
+        'ss',
+        'netstat',
+        'ifconfig',
+        'route',
+        'arp',
+        'arping',
+        'tcpdump',
+        'tshark',
+        'nmap',
+        'masscan',
+        'mtr',
+        'nmcli',
+        'resolvectl',
+        'getent',
+        'ethtool',
+        'iw',
+        'iwconfig',
+      ],
+      _net,
+      const {CommandCapability.networkRead},
+    ),
+
+    // --- raw transfer / tunneling ---
+    for (final c in const ['socat', 'lftp'])
+      CommandKnowledge(
+        executable: c,
+        category: _net,
+        description: 'Raw network transfer/relay tool.',
+        baseCapabilities: const {
+          CommandCapability.networkRead,
+          CommandCapability.networkWrite,
+        },
+      ),
+    ...simpleEntries(
+      const ['mosh', 'autossh', 'sshpass'],
+      _net,
+      const {CommandCapability.networkRead, CommandCapability.networkWrite},
+    ),
+    const CommandKnowledge(
+      executable: 'ssh-copy-id',
+      category: _net,
+      description: 'Installs your public key on a remote host.',
+      baseCapabilities: {CommandCapability.networkWrite},
+    ),
+    const CommandKnowledge(
+      executable: 'ssh-keyscan',
+      category: _net,
+      description: 'Collects host keys from remote servers.',
+      baseCapabilities: {CommandCapability.networkRead},
+    ),
+
+    // --- VPN / overlay networks (reconfigure networking) ---
+    ...simpleEntries(
+      const ['tailscale', 'zerotier-cli', 'wg-quick'],
+      _net,
+      const {
+        CommandCapability.networkWrite,
+        CommandCapability.systemConfiguration,
+      },
+    ),
+    const CommandKnowledge(
+      executable: 'wg',
+      category: _net,
+      description: 'Configures WireGuard interfaces.',
+      baseCapabilities: {CommandCapability.systemConfiguration},
+    ),
     for (final c in const ['http', 'https', 'httpie', 'xh'])
       CommandKnowledge(
         executable: c,

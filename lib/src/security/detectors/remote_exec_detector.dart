@@ -52,8 +52,10 @@ final class RemoteExecDetector extends SecurityDetector {
   }
 
   static final RegExp _rawPattern = RegExp(
-    r'\b(curl|wget|aria2c|fetch|iwr|irm|invoke-webrequest|invoke-restmethod)\b'
-    r'[^|]*\|[^|]*\b(bash|sh|zsh|dash|ksh|fish|python|node|ruby|perl|php|deno)\b',
+    r'\b(curl|wget|aria2c|fetch|iwr|irm|invoke-webrequest|invoke-restmethod'
+    r'|lftp|yt-dlp|youtube-dl|certutil|bitsadmin)\b'
+    r'[^|]*\|[^|]*\b(bash|sh|zsh|dash|ksh|fish|python|node|ruby|perl|php|deno'
+    r'|pwsh|powershell|cmd)\b',
     caseSensitive: false,
   );
 

@@ -17,7 +17,28 @@ final class ArchiveKnowledge implements CommandKnowledgePlugin {
 
   @override
   List<CommandKnowledge> get entries => [
-    for (final tool in const ['tar', '7z', '7za', 'cpio', 'ar', 'pax'])
+    for (final tool in const [
+      'tar',
+      '7z',
+      '7za',
+      '7zr',
+      'cpio',
+      'ar',
+      'pax',
+      'rar',
+      'unrar',
+      'unar',
+      'lha',
+      'arj',
+      'zoo',
+      'cabextract',
+      'rpm2cpio',
+      'dpkg-deb',
+      'jar',
+      'genisoimage',
+      'mkisofs',
+      'xorriso',
+    ])
       CommandKnowledge(
         executable: tool,
         category: KnowledgeCategory.archive,

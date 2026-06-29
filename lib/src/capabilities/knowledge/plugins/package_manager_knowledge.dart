@@ -44,23 +44,74 @@ final class PackageManagerKnowledge implements CommandKnowledgePlugin {
     description: 'Uploads a package to a registry.',
   );
 
+  // Running a project script or a fetched binary executes arbitrary code.
+  static const _scriptRun = SubcommandRule(
+    {'run', 'run-script', 'exec', 'start', 'test', 'dlx', 'x', 'create'},
+    {CommandCapability.executePrograms},
+    description: 'Runs project scripts or fetched binaries (arbitrary code).',
+  );
+
   @override
   List<CommandKnowledge> get entries => [
-    // --- user-space managers ---
-    for (final c in const ['npm', 'pnpm', 'yarn', 'gem', 'composer'])
+    // --- JS managers also run project scripts / fetched binaries ---
+    for (final c in const ['npm', 'pnpm', 'yarn', 'bun'])
+      CommandKnowledge(
+        executable: c,
+        category: _pm,
+        description: 'JavaScript package manager.',
+        subcommands: const [_userInstall, _publish, _scriptRun],
+      ),
+    for (final c in const ['gem', 'composer'])
       CommandKnowledge(
         executable: c,
         category: _pm,
         description: 'Package manager.',
         subcommands: const [_userInstall, _publish],
       ),
-    for (final c in const ['pip', 'pip3'])
+    for (final c in const [
+      'pip',
+      'pip3',
+      'pipx',
+      'poetry',
+      'conda',
+      'mamba',
+      'micromamba',
+      'uv',
+      'rye',
+      'pdm',
+      'hatch',
+    ])
       CommandKnowledge(
         executable: c,
         category: _pm,
-        description: 'Python package installer.',
+        description: 'Python package/environment manager.',
+        subcommands: const [_userInstall, _publish],
+      ),
+    // toolchain / runtime version managers (download + install toolchains).
+    for (final c in const [
+      'rustup',
+      'asdf',
+      'nvm',
+      'fnm',
+      'volta',
+      'sdkman',
+      'pkgx',
+      'bundle',
+      'bundler',
+    ])
+      CommandKnowledge(
+        executable: c,
+        category: _pm,
+        description: 'Toolchain / dependency manager.',
         subcommands: const [_userInstall],
       ),
+    // twine only uploads packages to a registry.
+    const CommandKnowledge(
+      executable: 'twine',
+      category: _pm,
+      description: 'Uploads Python packages to PyPI.',
+      baseCapabilities: {CommandCapability.networkWrite},
+    ),
     for (final c in const ['cargo', 'go'])
       CommandKnowledge(
         executable: c,
@@ -75,12 +126,21 @@ final class PackageManagerKnowledge implements CommandKnowledgePlugin {
     for (final c in const [
       'apt',
       'apt-get',
+      'aptitude',
+      'dpkg',
+      'rpm',
       'brew',
+      'port',
       'dnf',
       'yum',
       'pacman',
       'apk',
       'zypper',
+      'emerge',
+      'nix',
+      'nix-env',
+      'snap',
+      'flatpak',
       'choco',
       'winget',
       'scoop',

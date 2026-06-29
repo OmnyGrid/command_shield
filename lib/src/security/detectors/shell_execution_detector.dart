@@ -2,8 +2,10 @@ import '../security_detector.dart';
 import '../security_finding.dart';
 import '../security_level.dart';
 
-/// Detects invocations that execute an arbitrary command string supplied as an
-/// argument: `bash -c`, `sh -c`, `cmd /c`, `powershell -Command`, etc.
+/// Detects invocations that execute an arbitrary command/code string supplied
+/// as an argument: `bash -c`, `sh -c`, `cmd /c`, `powershell -Command`, and
+/// language interpreters running inline code (`python -c`, `node -e`,
+/// `perl -e`, `ruby -e`, `php -r`, `osascript -e`, `deno eval`, …).
 ///
 /// These are reported at [SecurityLevel.highRisk]; PowerShell's
 /// `-EncodedCommand` is [SecurityLevel.critical] because it conceals intent.
@@ -22,6 +24,24 @@ final class ShellExecutionDetector extends SecurityDetector {
     'ksh',
     'fish',
   };
+
+  /// Interpreters that run inline code, mapped to the flags that introduce it.
+  /// Names are matched after normalization (so `python3`/`node18` collapse to
+  /// `python`/`node`).
+  static const Map<String, Set<String>> _evalFlagInterpreters =
+      <String, Set<String>>{
+        'python': {'-c'},
+        'node': {'-e', '--eval', '-p', '--print'},
+        'bun': {'-e', '--eval'},
+        'perl': {'-e', '-E'},
+        'ruby': {'-e'},
+        'php': {'-r'},
+        'lua': {'-e'},
+        'osascript': {'-e'},
+        'rscript': {'-e'},
+        'elixir': {'-e'},
+        'groovy': {'-e'},
+      };
 
   @override
   List<SecurityFinding> detect(SecurityContext context) {
@@ -81,6 +101,25 @@ final class ShellExecutionDetector extends SecurityDetector {
             ),
           );
         }
+      } else if (_evalFlagInterpreters[exe]?.any(args.contains) ?? false) {
+        findings.add(
+          SecurityFinding(
+            level: SecurityLevel.highRisk,
+            message:
+                'Inline code execution via "$exe" runs an arbitrary code '
+                'string.',
+            code: code,
+          ),
+        );
+      } else if (exe == 'deno' && args.isNotEmpty && args.first == 'eval') {
+        // `deno eval "<code>"` runs inline code (eval is a sub-command).
+        findings.add(
+          SecurityFinding(
+            level: SecurityLevel.highRisk,
+            message: 'Inline code execution via "deno eval".',
+            code: code,
+          ),
+        );
       }
     }
     return findings;

@@ -134,6 +134,11 @@ abstract final class CommandFamilies {
     'iwr',
     'invoke-restmethod',
     'irm',
+    'lftp',
+    'yt-dlp',
+    'youtube-dl',
+    'certutil',
+    'bitsadmin',
   };
 
   /// Privilege-escalation commands.
@@ -143,6 +148,9 @@ abstract final class CommandFamilies {
     'doas',
     'pkexec',
     'runas',
+    'gosu',
+    'run0',
+    'please',
   };
 
   /// File/directory deletion commands.
@@ -155,5 +163,24 @@ abstract final class CommandFamilies {
     'shred',
     'remove-item',
     'ri',
+    'srm',
+    'wipe',
+    'blkdiscard',
   };
+
+  /// Disk-format / signature-wipe tools that have no safe form (every
+  /// invocation destroys a filesystem or device). `mkfs.*` variants are matched
+  /// by prefix, not membership — see [isDiskDestructive].
+  static const Set<String> diskDestructive = <String>{
+    'mkfs',
+    'mke2fs',
+    'mkswap',
+    'wipefs',
+  };
+
+  /// Whether [normalizedExecutable] is a disk-format / wipe tool, including the
+  /// `mkfs.<fs>` family (`mkfs.ext4`, `mkfs.xfs`, …).
+  static bool isDiskDestructive(String normalizedExecutable) =>
+      diskDestructive.contains(normalizedExecutable) ||
+      normalizedExecutable.startsWith('mkfs.');
 }

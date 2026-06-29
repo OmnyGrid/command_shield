@@ -115,14 +115,22 @@ final class CommandKnowledgeBase {
     // Recurse into wrapped commands (sudo/env/xargs/...), bounded to avoid
     // pathological inputs.
     if (entry?.wrapper != null && depth < 4) {
-      final wrapped = _wrappedCommand(entry!.wrapper!, args);
-      if (wrapped != null) {
-        _collect(
-          wrapped.executable,
-          wrapped.arguments,
-          match,
-          depth: depth + 1,
-        );
+      final spec = entry!.wrapper!;
+      if (spec.lookupFlags.isNotEmpty && args.any(spec.lookupFlags.contains)) {
+        // A lookup form (`command -v foo`) resolves/prints the named command
+        // without executing it, so it does not inherit the target's
+        // capabilities — it only inspects the filesystem/PATH.
+        match.add(CommandCapability.readFilesystem);
+      } else {
+        final wrapped = _wrappedCommand(spec, args);
+        if (wrapped != null) {
+          _collect(
+            wrapped.executable,
+            wrapped.arguments,
+            match,
+            depth: depth + 1,
+          );
+        }
       }
     }
     return depth == 0 ? entry : null;

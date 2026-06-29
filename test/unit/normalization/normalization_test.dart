@@ -34,6 +34,10 @@ void main() {
     test('resolves aliases', () {
       expect(normalizer.normalize('pwsh'), 'powershell');
       expect(normalizer.normalize('vi'), 'vim');
+      // Debian binary renames / package-vs-binary names.
+      expect(normalizer.normalize('batcat'), 'bat');
+      expect(normalizer.normalize('fdfind'), 'fd');
+      expect(normalizer.normalize('ripgrep'), 'rg');
     });
 
     test('trims whitespace', () {
