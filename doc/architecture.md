@@ -49,7 +49,10 @@ sub-commands (`git push` → networkWrite vs `git status` → readFilesystem),
 upload flags, and **wrapper commands** (`sudo`, `env`, `xargs`, …) whose wrapped
 program's capabilities are attributed to the invocation. Structural features add
 capabilities too: redirections imply read/write, substitutions imply execution,
-env references imply environment access.
+env references imply environment access. Conversely, purely informational
+invocations — where every argument is a version/help token such as
+`dart --version`, `node --version` or `--help` — are recognised and treated as
+read-only even for execute-by-default tools.
 
 ## 4. Effects (`src/classification/`)
 

@@ -25,13 +25,6 @@ final class ShellKnowledge implements CommandKnowledgePlugin {
         'fish',
         'csh',
         'tcsh',
-        'python',
-        'python3',
-        'node',
-        'ruby',
-        'perl',
-        'php',
-        'java',
         'npx',
         'make',
         'gcc',
@@ -42,8 +35,6 @@ final class ShellKnowledge implements CommandKnowledgePlugin {
         'cmd',
         'powershell',
         'pwsh',
-        'deno',
-        'dotnet',
         'mvn',
         'gradle',
         'rake',
@@ -117,6 +108,51 @@ final class ShellKnowledge implements CommandKnowledgePlugin {
       ],
       KnowledgeCategory.interpreter,
       const {CommandCapability.executePrograms},
+    ),
+
+    // --- interpreters with extra, unambiguous informational version flags ---
+    // (the global `--version`/`--help`/`--usage` gate covers the rest).
+    ...simpleEntries(
+      const ['node', 'php'],
+      KnowledgeCategory.interpreter,
+      const {CommandCapability.executePrograms},
+      informationalTokens: const {'-v'},
+    ),
+    ...simpleEntries(
+      const ['ruby'],
+      KnowledgeCategory.interpreter,
+      const {CommandCapability.executePrograms},
+      informationalTokens: const {'-v'},
+    ),
+    ...simpleEntries(
+      const ['python', 'python3'],
+      KnowledgeCategory.interpreter,
+      const {CommandCapability.executePrograms},
+      informationalTokens: const {'-V'},
+    ),
+    ...simpleEntries(
+      const ['perl'],
+      KnowledgeCategory.interpreter,
+      const {CommandCapability.executePrograms},
+      informationalTokens: const {'-v', '-V'},
+    ),
+    ...simpleEntries(
+      const ['deno'],
+      KnowledgeCategory.interpreter,
+      const {CommandCapability.executePrograms},
+      informationalTokens: const {'-V'},
+    ),
+    ...simpleEntries(
+      const ['java'],
+      KnowledgeCategory.interpreter,
+      const {CommandCapability.executePrograms},
+      informationalTokens: const {'-version'},
+    ),
+    ...simpleEntries(
+      const ['dotnet'],
+      KnowledgeCategory.interpreter,
+      const {CommandCapability.executePrograms},
+      informationalTokens: const {'--info', '--list-sdks', '--list-runtimes'},
     ),
 
     // --- privilege-escalation wrappers ---

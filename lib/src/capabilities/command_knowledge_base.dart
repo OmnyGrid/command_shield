@@ -101,6 +101,23 @@ final class CommandKnowledgeBase {
     required int depth,
   }) {
     final entry = _table[exe];
+
+    // Informational-form gate: when EVERY argument is a purely informational
+    // token (e.g. `--version`, `--help`), the invocation only prints metadata
+    // and executes nothing — regardless of how risky the command is by default.
+    // Requiring every token to be informational is the safety guarantee:
+    // `dart --version` is suppressed, but `dart --version x.dart` and
+    // `go env -w K=V` fall through to normal analysis. This runs before base
+    // capabilities/risk are applied and at every recursion depth, so wrapped
+    // forms (`sudo node --version`) are handled too.
+    if (entry != null && args.isNotEmpty && _isInformationalOnly(entry, args)) {
+      match.add(CommandCapability.readFilesystem);
+      match.note(
+        'Informational invocation ("${args.join(' ')}") prints metadata only.',
+      );
+      return depth == 0 ? entry : null;
+    }
+
     if (entry != null) {
       match.addAll(entry.baseCapabilities);
       match.raiseRisk(entry.baseRisk);
@@ -177,6 +194,20 @@ final class CommandKnowledgeBase {
     }
     if (i >= args.length) return null;
     return _Wrapped(args[i].toLowerCase(), args.sublist(i + 1));
+  }
+
+  /// Whether [args] consists entirely of informational tokens (the global
+  /// [defaultInformationalTokens] plus any [CommandKnowledge.informationalTokens]
+  /// the matched [entry] declares). Case-sensitive.
+  static bool _isInformationalOnly(CommandKnowledge entry, List<String> args) {
+    if (entry.informationalTokens.isEmpty) {
+      return args.every(defaultInformationalTokens.contains);
+    }
+    return args.every(
+      (a) =>
+          defaultInformationalTokens.contains(a) ||
+          entry.informationalTokens.contains(a),
+    );
   }
 
   static String? _firstNonFlag(List<String> args) {
