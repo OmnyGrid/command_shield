@@ -14,22 +14,56 @@ final class EditorKnowledge implements CommandKnowledgePlugin {
   @override
   String get name => 'editor';
 
+  static const _ed = KnowledgeCategory.editor;
+
   @override
-  List<CommandKnowledge> get entries => simpleEntries(
-    const [
-      'vim',
-      'vi',
-      'nvim',
-      'vimdiff',
-      'nano',
-      'emacs',
-      'ed',
-      'ex',
-      'pico',
-      'joe',
-      'micro',
-    ],
-    KnowledgeCategory.editor,
-    const {CommandCapability.readFilesystem, CommandCapability.writeFilesystem},
-  );
+  List<CommandKnowledge> get entries => [
+    ...simpleEntries(
+      const [
+        'vim',
+        'vi',
+        'nvim',
+        'neovim',
+        'vimdiff',
+        'gvim',
+        'view',
+        'nano',
+        'emacs',
+        'ed',
+        'ex',
+        'pico',
+        'joe',
+        'micro',
+        // GUI / modern editors (can open, edit and run files)
+        'code',
+        'code-insiders',
+        'codium',
+        'subl',
+        'sublime_text',
+        'atom',
+        'gedit',
+        'kate',
+        'kwrite',
+        'mousepad',
+        'notepad',
+        'notepad++',
+        'helix',
+        'hx',
+        'kak',
+        'kakoune',
+      ],
+      _ed,
+      const {
+        CommandCapability.readFilesystem,
+        CommandCapability.writeFilesystem,
+      },
+    ),
+
+    // Documentation viewers (read-only).
+    ...simpleEntries(
+      const ['man', 'info', 'apropos', 'whatis', 'cheat'],
+      _ed,
+      const {CommandCapability.readFilesystem},
+    ),
+  ];
 }

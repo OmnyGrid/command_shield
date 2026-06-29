@@ -38,6 +38,16 @@ final class CompressionKnowledge implements CommandKnowledgePlugin {
       'uncompress',
       'brotli',
       'pigz',
+      'lzip',
+      'plzip',
+      'lrzip',
+      'lzop',
+      'lbzip2',
+      'pbzip2',
+      'pixz',
+      'zpaq',
+      'unlz4',
+      'unbrotli',
     ])
       CommandKnowledge(
         executable: tool,

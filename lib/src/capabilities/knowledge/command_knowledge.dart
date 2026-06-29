@@ -39,6 +39,10 @@ enum KnowledgeCategory {
   /// Container and orchestration tools (`docker`, `podman`, `kubectl`).
   container,
 
+  /// Infrastructure-as-code and configuration-management tools (`terraform`,
+  /// `ansible`, `pulumi`, `vault`, …).
+  infrastructure,
+
   /// Network clients and utilities (`curl`, `ssh`, `ping`, cloud CLIs).
   network,
 
@@ -250,6 +254,7 @@ final class WrapperSpec {
   const WrapperSpec({
     this.skipLeadingFlags = true,
     this.skipAssignments = false,
+    this.lookupFlags = const <String>{},
   });
 
   /// Whether leading `-`-prefixed option tokens are skipped before the wrapped
@@ -259,6 +264,12 @@ final class WrapperSpec {
   /// Whether leading `NAME=VALUE` assignment tokens are skipped (as with
   /// `env FOO=bar cmd`).
   final bool skipAssignments;
+
+  /// Flags that turn the wrapper into a *lookup* rather than an execution, so
+  /// the named command is resolved/printed but **not** run (e.g. `command -v
+  /// foo` / `command -V foo`). When any of these is present the wrapped command
+  /// is not analysed; the invocation is treated as a read-only lookup.
+  final Set<String> lookupFlags;
 }
 
 /// An optional Dart hook for command logic that the declarative rules cannot

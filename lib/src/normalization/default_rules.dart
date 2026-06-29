@@ -57,6 +57,11 @@ final NormalizationRule aliasRule = NormalizationRule(
       'g++': 'gcc',
       'vi': 'vim',
       'fetch': 'curl',
+      // Debian/Ubuntu rename these binaries to avoid clashes; same tools.
+      'batcat': 'bat',
+      'fdfind': 'fd',
+      // `ripgrep` is the package name; the binary is `rg`.
+      'ripgrep': 'rg',
     };
     return aliases[executable.toLowerCase()] ?? executable;
   },

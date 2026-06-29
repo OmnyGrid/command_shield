@@ -124,6 +124,34 @@ void main() {
       final f = r.findings.where((f) => f.code == 'shell-execution');
       expect(f.every((f) => f.level != SecurityLevel.critical), isTrue);
     });
+
+    test('interpreter inline eval is flagged (python -c, node -e, …)', () {
+      for (final cmd in const [
+        'python -c "import os"',
+        'python3 -c "x"',
+        'node -e "require(\'fs\')"',
+        'node -p "1+1"',
+        'perl -e "print 1"',
+        'ruby -e "puts 1"',
+        'php -r "echo 1;"',
+        'osascript -e "tell app"',
+        'deno eval "Deno.exit()"',
+      ]) {
+        final f = finding(report(cmd), 'shell-execution');
+        expect(f.level, SecurityLevel.highRisk, reason: cmd);
+      }
+    });
+
+    test('does not flag interpreters running a script file', () {
+      for (final cmd in const [
+        'python app.py',
+        'node server.js',
+        'ruby script.rb',
+        'perl tool.pl',
+      ]) {
+        expect(hasCode(report(cmd), 'shell-execution'), isFalse, reason: cmd);
+      }
+    });
   });
 
   group('inline sub-command analysis', () {

@@ -1,3 +1,4 @@
+import '../../../security/security_level.dart';
 import '../../capability.dart';
 import '../command_knowledge.dart';
 import '../command_knowledge_plugin.dart';
@@ -108,13 +109,21 @@ final class FilesystemKnowledge implements CommandKnowledgePlugin {
     ),
 
     // --- special cases ---
-    const CommandKnowledge(
+    CommandKnowledge(
       executable: 'dd',
       category: _fs,
       description: 'Low-level copy/convert of files and devices.',
-      baseCapabilities: {
+      baseCapabilities: const {
         CommandCapability.readFilesystem,
         CommandCapability.writeFilesystem,
+      },
+      // Writing directly to a block device (`of=/dev/...`) can destroy a disk.
+      refine: (args, match) {
+        if (args.any((a) => a.toLowerCase().startsWith('of=/dev/'))) {
+          match.add(CommandCapability.systemConfiguration);
+          match.raiseRisk(SecurityLevel.critical);
+          match.note('Writes directly to a block device.');
+        }
       },
     ),
     for (final mv in const ['mv', 'move'])

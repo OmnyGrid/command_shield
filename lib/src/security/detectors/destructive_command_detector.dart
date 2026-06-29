@@ -25,6 +25,9 @@ final class DestructiveCommandDetector extends SecurityDetector {
     'doas',
     'pkexec',
     'runas',
+    'gosu',
+    'run0',
+    'please',
     'env',
     'xargs',
     'time',
@@ -42,30 +45,84 @@ final class DestructiveCommandDetector extends SecurityDetector {
     final findings = <SecurityFinding>[];
     for (final inv in context.invocations) {
       final tokens = <String>[inv.executable, ...inv.arguments];
-      final hit = _findDestructive(context, tokens);
-      if (hit == null) continue;
-      findings.add(_classify(hit.command, hit.args));
+      // `command -v rm` / `command -V mkfs` only resolves the name; it does not
+      // run it, so it must not be treated as a destructive invocation.
+      if (_isCommandLookup(context, tokens)) continue;
+      final eff = _effective(context, tokens);
+      if (eff == null) continue;
+      final cmd = eff.command;
+      final args = eff.args;
+      if (CommandFamilies.isDiskDestructive(cmd)) {
+        findings.add(_diskFormatFinding(cmd));
+      } else if (cmd == 'dd' && _writesToDevice(args)) {
+        findings.add(_deviceWriteFinding(cmd));
+      } else if (cmd == 'find' && args.contains('-delete')) {
+        // `find <path> -delete` removes matched entries — catastrophic when the
+        // path is a filesystem root or system directory (`find / -delete`).
+        findings.add(_classify(cmd, args));
+      } else if (CommandFamilies.destructive.contains(cmd)) {
+        findings.add(_classify(cmd, args));
+      }
     }
     return findings;
   }
 
-  _Hit? _findDestructive(SecurityContext context, List<String> tokens) {
+  /// Resolves the concrete program a token list ultimately runs, looking
+  /// *through* wrapper commands (`sudo`, `env`, …) and their option flags.
+  /// Returns the first non-wrapper executable and the tokens after it, or
+  /// `null` if the list is only wrappers/flags. A destructive name appearing
+  /// after the effective command is just an argument value (e.g. `echo rm`).
+  _Hit? _effective(SecurityContext context, List<String> tokens) {
     for (var i = 0; i < tokens.length; i++) {
       final raw = tokens[i];
-      final norm = context.normalizer.normalize(raw).toLowerCase();
-      if (CommandFamilies.destructive.contains(norm)) {
-        return _Hit(norm, tokens.sublist(i + 1));
-      }
-      // Skip wrapper commands (sudo, env, ...) and their option flags so we can
-      // look *through* them. As soon as we reach a concrete program that is not
-      // a wrapper, stop: a destructive name appearing later is just an argument
-      // value (e.g. `echo rm`), not the program being executed.
       if (raw.startsWith('-')) continue;
+      final norm = context.normalizer.normalize(raw).toLowerCase();
       if (_wrappers.contains(norm)) continue;
-      return null;
+      return _Hit(norm, tokens.sublist(i + 1));
     }
     return null;
   }
+
+  /// Whether [tokens] is a `command -v`/`-V` (or `builtin command -v`) lookup,
+  /// which resolves a name without executing it. Returns true as soon as a
+  /// `-v`/`-V` flag is seen while the leading tokens are only `command`/
+  /// `builtin`; stops once the target program is reached.
+  bool _isCommandLookup(SecurityContext context, List<String> tokens) {
+    var sawCommand = false;
+    for (final t in tokens) {
+      if (t == '-v' || t == '-V') {
+        if (sawCommand) return true;
+        continue;
+      }
+      if (t.startsWith('-')) continue;
+      final norm = context.normalizer.normalize(t).toLowerCase();
+      if (norm == 'command' || norm == 'builtin') {
+        sawCommand = true;
+        continue;
+      }
+      return false; // reached the target program
+    }
+    return false;
+  }
+
+  static bool _writesToDevice(List<String> args) =>
+      args.any((a) => a.toLowerCase().startsWith('of=/dev/'));
+
+  SecurityFinding _diskFormatFinding(String command) => SecurityFinding(
+    level: SecurityLevel.critical,
+    message:
+        'Disk-format/wipe command "$command" irrecoverably destroys data on '
+        'the target filesystem or device.',
+    code: code,
+  );
+
+  SecurityFinding _deviceWriteFinding(String command) => SecurityFinding(
+    level: SecurityLevel.critical,
+    message:
+        'Command "$command" writes directly to a block device (of=/dev/...), '
+        'which can destroy a disk.',
+    code: code,
+  );
 
   SecurityFinding _classify(String command, List<String> args) {
     final recursive = args.any(_isRecursiveFlag);
@@ -127,6 +184,9 @@ final class DestructiveCommandDetector extends SecurityDetector {
     caseSensitive: false,
   );
   static final RegExp _winRoot = RegExp(r'^[A-Za-z]:[\\/]?\*?$');
+  static final RegExp _devNode = RegExp(
+    r'^/dev/(sd|hd|vd|xvd|nvme|mmcblk|disk|loop|md|dm-)',
+  );
 
   static const Set<String> _systemDirs = <String>{
     '/etc',
@@ -158,6 +218,7 @@ final class DestructiveCommandDetector extends SecurityDetector {
     if (_winVar.hasMatch(s)) return true;
     if (_winRoot.hasMatch(s)) return true;
     final lower = s.toLowerCase();
+    if (_devNode.hasMatch(lower)) return true;
     for (final dir in _systemDirs) {
       if (lower == dir || lower == '$dir/' || lower.startsWith('$dir/*')) {
         return true;

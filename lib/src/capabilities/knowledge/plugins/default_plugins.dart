@@ -5,16 +5,20 @@ import 'container_knowledge.dart';
 import 'crypto_knowledge.dart';
 import 'dart_flutter_knowledge.dart';
 import 'database_knowledge.dart';
+import 'disk_knowledge.dart';
 import 'editor_knowledge.dart';
 import 'environment_knowledge.dart';
 import 'filesystem_knowledge.dart';
 import 'git_knowledge.dart';
 import 'hash_knowledge.dart';
+import 'iac_knowledge.dart';
+import 'modern_cli_knowledge.dart';
 import 'network_knowledge.dart';
 import 'package_manager_knowledge.dart';
 import 'process_knowledge.dart';
 import 'shell_knowledge.dart';
 import 'system_config_knowledge.dart';
+import 'vcs_knowledge.dart';
 import 'windows_knowledge.dart';
 
 /// The built-in plugins composed by `CommandKnowledgeBase` when no explicit set
@@ -31,15 +35,19 @@ const List<CommandKnowledgePlugin> defaultKnowledgePlugins =
       CompressionKnowledge(),
       CryptoKnowledge(),
       EditorKnowledge(),
+      ModernCliKnowledge(),
       ShellKnowledge(),
       EnvironmentKnowledge(),
       ProcessKnowledge(),
       SystemConfigKnowledge(),
+      DiskKnowledge(),
       NetworkKnowledge(),
       DatabaseKnowledge(),
       ContainerKnowledge(),
+      IacKnowledge(),
       PackageManagerKnowledge(),
       DartFlutterKnowledge(),
       GitKnowledge(),
+      VcsKnowledge(),
       WindowsKnowledge(),
     ];
