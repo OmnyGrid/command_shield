@@ -3,6 +3,21 @@ import 'package:meta/meta.dart' show immutable;
 import '../../security/security_level.dart';
 import '../capability.dart';
 
+/// Argument tokens that, when they are the ONLY arguments present, make any
+/// known command a purely informational invocation (it prints metadata and
+/// executes nothing) and therefore safe — even for execute-by-default tools
+/// such as `dart`, `node` or `python`.
+///
+/// Deliberately limited to UNAMBIGUOUS long forms. Short forms like `-v`
+/// (often "verbose"), `-V` and `-h` (often "human-readable"/"host") vary by
+/// tool and are opted in per command via [CommandKnowledge.informationalTokens].
+/// Matching is CASE-SENSITIVE so `-V` and `-v` are never conflated.
+const Set<String> defaultInformationalTokens = <String>{
+  '--version',
+  '--help',
+  '--usage',
+};
+
 /// The broad domain a command belongs to.
 ///
 /// Categories are purely descriptive metadata; they do not affect capability
@@ -294,6 +309,7 @@ final class CommandKnowledge {
     this.description,
     this.baseCapabilities = const <CommandCapability>{},
     this.baseRisk = SecurityLevel.safe,
+    this.informationalTokens = const <String>{},
     this.subcommands = const <SubcommandRule>[],
     this.argumentRules = const <ArgumentRule>[],
     this.wrapper,
@@ -321,6 +337,14 @@ final class CommandKnowledge {
   /// The default risk hint for the command, before sub-command or argument
   /// refinement raises it.
   final SecurityLevel baseRisk;
+
+  /// Extra tokens — beyond [defaultInformationalTokens] — that mark a purely
+  /// informational invocation of THIS command when they are the only arguments
+  /// present (e.g. java `-version`, python `-V`, go `version`/`env`). When the
+  /// whole invocation is informational the command is treated as read-only and
+  /// safe regardless of [baseCapabilities]/[baseRisk]. Matching is
+  /// case-sensitive.
+  final Set<String> informationalTokens;
 
   /// Rules keyed on the first non-flag argument (the sub-command).
   final List<SubcommandRule> subcommands;

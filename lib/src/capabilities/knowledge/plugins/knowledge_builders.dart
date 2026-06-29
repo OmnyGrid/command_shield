@@ -11,6 +11,7 @@ List<CommandKnowledge> simpleEntries(
   KnowledgeCategory category,
   Set<CommandCapability> capabilities, {
   Set<CommandPlatform> platforms = const {CommandPlatform.cross},
+  Set<String> informationalTokens = const <String>{},
 }) => [
   for (final n in names)
     CommandKnowledge(
@@ -18,5 +19,6 @@ List<CommandKnowledge> simpleEntries(
       category: category,
       platforms: platforms,
       baseCapabilities: capabilities,
+      informationalTokens: informationalTokens,
     ),
 ];

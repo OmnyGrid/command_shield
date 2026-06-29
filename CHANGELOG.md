@@ -1,3 +1,31 @@
+## 1.3.0
+
+### Added
+
+- **Informational-form safety gate.** When *every* argument of a known command is
+  a purely informational token, the invocation is recognised as read-only and
+  safe — even for execute-by-default tools. So `dart --version`,
+  `flutter --version`, `node --version`, `python --version`, `go version`,
+  `java -version`, etc. now classify as `readFilesystem`/`safe` instead of
+  `executePrograms`. A new top-level `defaultInformationalTokens`
+  (`--version`, `--help`, `--usage`) covers all commands globally; individual
+  entries opt in to extra, tool-specific forms via the new
+  `CommandKnowledge.informationalTokens` field (e.g. java `-version`,
+  python `-V`, node/php/ruby `-v`, perl `-v`/`-V`, deno/cargo `-V`,
+  go `version`/`env`, dotnet `--info`/`--list-sdks`/`--list-runtimes`).
+  Matching is case-sensitive (`-V` ≠ `-v`) and requires the whole invocation to
+  be informational, so a payload defeats the gate: `dart --version script.dart`
+  and `go env -w K=V` still report `executePrograms`. The gate runs at every
+  recursion depth, so wrapped forms like `sudo node --version` are handled
+  (and `sudo` still reports `privilegeEscalation`).
+
+### Changed
+
+- Bare `--version`/`--help`/`--usage` (and the per-command short forms above) on
+  execute-by-default tools (`dart`, `flutter`, `node`, `python`, `go`, `cargo`,
+  …) now classify as read-only/safe instead of `executePrograms`. `npm --version`
+  moves from an empty capability set to `readFilesystem` (risk stays `safe`).
+
 ## 1.2.0
 
 ### Added

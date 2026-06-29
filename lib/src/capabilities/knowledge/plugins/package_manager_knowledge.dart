@@ -112,15 +112,25 @@ final class PackageManagerKnowledge implements CommandKnowledgePlugin {
       description: 'Uploads Python packages to PyPI.',
       baseCapabilities: {CommandCapability.networkWrite},
     ),
-    for (final c in const ['cargo', 'go'])
-      CommandKnowledge(
-        executable: c,
-        category: _pm,
-        description: 'Language toolchain / package manager.',
-        // These also build and run code.
-        baseCapabilities: const {CommandCapability.executePrograms},
-        subcommands: const [_userInstall, _publish],
-      ),
+    // cargo and go also build and run code, but each has its own informational
+    // forms: cargo `-V`, and go's positional `version`/`env` sub-commands
+    // (`go env -w K=V` falls through via the non-informational `-w`).
+    const CommandKnowledge(
+      executable: 'cargo',
+      category: _pm,
+      description: 'Rust toolchain / package manager.',
+      baseCapabilities: {CommandCapability.executePrograms},
+      subcommands: [_userInstall, _publish],
+      informationalTokens: {'-V'},
+    ),
+    const CommandKnowledge(
+      executable: 'go',
+      category: _pm,
+      description: 'Go toolchain / package manager.',
+      baseCapabilities: {CommandCapability.executePrograms},
+      subcommands: [_userInstall, _publish],
+      informationalTokens: {'version', 'env'},
+    ),
 
     // --- system managers (also reconfigure the system) ---
     for (final c in const [

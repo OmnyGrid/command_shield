@@ -665,4 +665,127 @@ void main() {
       );
     });
   });
+
+  group('informational-form gate', () {
+    test('execute-by-default tools are safe with --version', () {
+      for (final exe in const [
+        'dart',
+        'flutter',
+        'node',
+        'python',
+        'go',
+        'cargo',
+        'deno',
+        'gcc',
+      ]) {
+        final r = kb.analyze(exe, const ['--version']);
+        expect(r.risk, SecurityLevel.safe, reason: exe);
+        expect(
+          r.capabilities,
+          isNot(contains(CommandCapability.executePrograms)),
+          reason: exe,
+        );
+        expect(
+          r.capabilities,
+          contains(CommandCapability.readFilesystem),
+          reason: exe,
+        );
+      }
+    });
+
+    test('--help and --usage are also informational', () {
+      expect(
+        caps('dart', const ['--help']),
+        isNot(contains(CommandCapability.executePrograms)),
+      );
+      expect(kb.analyze('flutter', const ['--help']).risk, SecurityLevel.safe);
+      expect(
+        caps('node', const ['--usage']),
+        isNot(contains(CommandCapability.executePrograms)),
+      );
+    });
+
+    test('per-command short forms: java -version, python -V, node -v', () {
+      expect(
+        caps('java', const ['-version']),
+        isNot(contains(CommandCapability.executePrograms)),
+      );
+      expect(
+        caps('python', const ['-V']),
+        isNot(contains(CommandCapability.executePrograms)),
+      );
+      expect(
+        caps('node', const ['-v']),
+        isNot(contains(CommandCapability.executePrograms)),
+      );
+    });
+
+    test('go version and go env (alone) are informational', () {
+      expect(
+        caps('go', const ['version']),
+        isNot(contains(CommandCapability.executePrograms)),
+      );
+      expect(
+        caps('go', const ['env']),
+        isNot(contains(CommandCapability.executePrograms)),
+      );
+    });
+
+    test('a non-informational token defeats the gate', () {
+      // `dart --version <script>` still executes.
+      expect(
+        caps('dart', const ['--version', 'script.dart']),
+        contains(CommandCapability.executePrograms),
+      );
+      // `go env -w ...` writes config — must NOT be suppressed.
+      expect(
+        caps('go', const ['env', '-w', 'GOFLAGS=-mod=mod']),
+        contains(CommandCapability.executePrograms),
+      );
+    });
+
+    test('case sensitivity: python -v (verbose) is not informational', () {
+      // For python, `-V` prints the version but `-v` is verbose tracing.
+      expect(
+        caps('python', const ['-v']),
+        contains(CommandCapability.executePrograms),
+      );
+    });
+
+    test('npm --version stays safe (now read-only)', () {
+      final r = kb.analyze('npm', const ['--version']);
+      expect(r.risk, SecurityLevel.safe);
+      expect(
+        r.capabilities,
+        isNot(contains(CommandCapability.executePrograms)),
+      );
+      expect(r.capabilities, contains(CommandCapability.readFilesystem));
+    });
+
+    test('bare interpreter (no args) still executes by default', () {
+      expect(
+        caps('dart', const []),
+        contains(CommandCapability.executePrograms),
+      );
+    });
+
+    test('wrapped informational form: sudo node --version', () {
+      final r = kb.analyze('sudo', const ['node', '--version']);
+      expect(
+        r.capabilities,
+        isNot(contains(CommandCapability.executePrograms)),
+      );
+      // sudo itself still escalates privilege.
+      expect(r.capabilities, contains(CommandCapability.privilegeEscalation));
+    });
+
+    test('command -v lookup still works (gate does not interfere)', () {
+      final lookup = kb.analyze('command', const ['-v', 'rm']);
+      expect(lookup.capabilities, contains(CommandCapability.readFilesystem));
+      expect(
+        lookup.capabilities,
+        isNot(contains(CommandCapability.deleteFilesystem)),
+      );
+    });
+  });
 }
