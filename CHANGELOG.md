@@ -1,3 +1,34 @@
+## 1.4.0
+
+### Added
+
+- **File-descriptor redirections are modelled.** New `RedirectionType` cases
+  `mergeStreams` (`2>&1`, `1>&2`, `>&2`, `>&-`), `combinedOutput` (`&>file`,
+  `>&file`) and `combinedAppendOutput` (`&>>file`). All three shell parsers
+  (bash/POSIX, Windows `cmd`, PowerShell) now recognise these forms.
+- **Benign-redirection marker.** A new `BenignRedirectionDetector` (code
+  `benign-redirection`, in the default suite) records stream merges and
+  null-sink discards as explicit `SecurityLevel.safe` findings for audit
+  visibility. Being below every actionable level, it never changes a decision.
+
+### Changed
+
+- Innocuous redirections no longer over-report a filesystem write. Stream
+  merges (`2>&1`) touch no file, and discards to a null sink (`/dev/null`,
+  `NUL`, `$null`) write/read no real file, so none of them contribute
+  `writeFilesystem`/`readFilesystem` (and thus no `modifyFiles` effect). A
+  genuine target such as `> out.txt` or `&> out.log` still does.
+
+### Fixed
+
+- **`2>&1` is no longer mis-parsed.** Previously the bash tokenizer only knew
+  `2>`/`2>>`, so `cmd 2>&1` produced a target-less `2>` redirection, a spurious
+  "Redirection without a target" diagnostic, and a phantom `CommandInvocation`
+  with executable `1`. `1>&2` and `&>/dev/null` broke the same way. These now
+  parse as a single clean command with the correct redirection and no
+  diagnostic. The discard-everything idiom `cmd >/dev/null 2>&1` parses as one
+  command with two redirections.
+
 ## 1.3.0
 
 ### Added

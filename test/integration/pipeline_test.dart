@@ -150,6 +150,48 @@ void main() {
     });
   });
 
+  group('innocuous redirections', () {
+    test('ls -la 2>&1 stays read-only and allowed', () {
+      final analysis = shield.analyze('ls -la 2>&1');
+      final result = shield.validate('ls -la 2>&1');
+      expect(analysis.effects, isNot(contains(CommandEffect.modifyFiles)));
+      expect(analysis.isReadOnly, isTrue);
+      expect(result.decision, CommandDecision.allow);
+      expect(
+        analysis.findings.any((f) => f.code == 'benign-redirection'),
+        isTrue,
+      );
+    });
+
+    test('grep x f > /dev/null is allowed with a benign marker', () {
+      final analysis = shield.analyze('grep x f > /dev/null');
+      expect(analysis.effects, isNot(contains(CommandEffect.modifyFiles)));
+      expect(
+        shield.validate('grep x f > /dev/null').decision,
+        CommandDecision.allow,
+      );
+      expect(
+        analysis.findings.any((f) => f.code == 'benign-redirection'),
+        isTrue,
+      );
+    });
+
+    test('discard-everything idiom > /dev/null 2>&1 is allowed', () {
+      final analysis = shield.analyze('echo hi > /dev/null 2>&1');
+      expect(analysis.effects, isNot(contains(CommandEffect.modifyFiles)));
+      expect(
+        shield.validate('echo hi > /dev/null 2>&1').decision,
+        CommandDecision.allow,
+      );
+    });
+
+    test('redirection suppression does not mask the command risk', () {
+      // `rm -rf` is still dangerous even when its output is discarded.
+      final result = shield.validate('rm -rf /tmp/x > /dev/null 2>&1');
+      expect(result.decision, isNot(CommandDecision.allow));
+    });
+  });
+
   group('custom policy wiring', () {
     test('custom allow-list policy overrides default', () {
       final shield = CommandShield(

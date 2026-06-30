@@ -108,6 +108,34 @@ void main() {
       );
     });
 
+    test('stream merge 2>&1 implies no filesystem write', () {
+      // `ls` reads the filesystem; the merge itself must add nothing.
+      final c = caps('ls 2>&1');
+      expect(c, isNot(contains(CommandCapability.writeFilesystem)));
+    });
+
+    test('discard to /dev/null implies no filesystem write', () {
+      expect(
+        caps('echo hi > /dev/null'),
+        isNot(contains(CommandCapability.writeFilesystem)),
+      );
+      expect(
+        caps('cmd 2> /dev/null'),
+        isNot(contains(CommandCapability.writeFilesystem)),
+      );
+      expect(
+        caps('cmd &> /dev/null'),
+        isNot(contains(CommandCapability.writeFilesystem)),
+      );
+    });
+
+    test('combined redirect to a real file still implies write', () {
+      expect(
+        caps('cmd &> out.log'),
+        contains(CommandCapability.writeFilesystem),
+      );
+    });
+
     test('command substitution implies execute', () {
       expect(
         caps(r'echo $(whoami)'),

@@ -73,6 +73,7 @@ export 'src/policies/length_limit_policy.dart';
 export 'src/policies/path_traversal_policy.dart';
 export 'src/policies/risk_threshold_policy.dart';
 export 'src/policies/shell_execution_policy.dart';
+export 'src/security/detectors/benign_redirection_detector.dart';
 export 'src/security/detectors/command_substitution_detector.dart';
 export 'src/security/detectors/dangerous_operator_detector.dart';
 export 'src/security/detectors/destructive_command_detector.dart';

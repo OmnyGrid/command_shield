@@ -52,6 +52,23 @@ void main() {
       expect(inv.redirections.first.type, RedirectionType.output);
     });
 
+    test('stderr-to-stdout merge 2>&1', () {
+      final result = parser.parse('dir 2>&1');
+      final inv = result.ast! as CommandInvocation;
+      expect(inv.executable, 'dir');
+      expect(inv.arguments, isEmpty); // no phantom `1` command
+      expect(result.diagnostics, isEmpty);
+      expect(inv.redirections.first.type, RedirectionType.mergeStreams);
+      expect(inv.redirections.first.target, '2>&1');
+    });
+
+    test('discard to NUL implies no filesystem write', () {
+      expect(
+        CapabilityDetector().detect(ast('dir > NUL')),
+        isNot(contains(CommandCapability.writeFilesystem)),
+      );
+    });
+
     test('double quotes group text', () {
       final inv = ast('echo "a b"') as CommandInvocation;
       expect(inv.arguments, ['a b']);

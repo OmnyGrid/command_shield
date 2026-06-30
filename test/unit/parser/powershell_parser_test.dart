@@ -68,6 +68,22 @@ void main() {
       expect(inv.redirections.first.type, RedirectionType.output);
     });
 
+    test('error-to-output merge 2>&1', () {
+      final result = parser.parse('Get-Item x 2>&1');
+      final inv = result.ast! as CommandInvocation;
+      expect(inv.executable, 'Get-Item');
+      expect(inv.arguments, ['x']); // no phantom `1` command
+      expect(inv.redirections.first.type, RedirectionType.mergeStreams);
+      expect(inv.redirections.first.target, '2>&1');
+    });
+
+    test(r'discard to $null implies no filesystem write', () {
+      expect(
+        CapabilityDetector().detect(ast(r'Get-Item x > $null')),
+        isNot(contains(CommandCapability.writeFilesystem)),
+      );
+    });
+
     test('empty input yields no AST', () {
       expect(parser.parse('').ast, isNull);
     });
