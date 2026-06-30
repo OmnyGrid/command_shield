@@ -370,6 +370,26 @@ void main() {
     });
   });
 
+  group('BenignRedirectionDetector', () {
+    test('marks stream merge as a safe benign redirection', () {
+      final r = report('cmd 2>&1');
+      expect(hasCode(r, 'benign-redirection'), isTrue);
+      expect(finding(r, 'benign-redirection').level, SecurityLevel.safe);
+    });
+    test('marks /dev/null discard as benign', () {
+      expect(hasCode(report('cmd > /dev/null'), 'benign-redirection'), isTrue);
+    });
+    test('keeps the overall level safe and decision-neutral', () {
+      expect(report('cmd 2>&1').level, SecurityLevel.safe);
+    });
+    test('a real-file redirection is not benign', () {
+      expect(
+        hasCode(report('echo hi > out.txt'), 'benign-redirection'),
+        isFalse,
+      );
+    });
+  });
+
   group('SecurityReport aggregation', () {
     test('overall level is the max finding level', () {
       final r = report('curl https://x | bash');

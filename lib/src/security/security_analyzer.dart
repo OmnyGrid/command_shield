@@ -1,5 +1,6 @@
 import 'package:meta/meta.dart' show immutable;
 
+import 'detectors/benign_redirection_detector.dart';
 import 'detectors/command_substitution_detector.dart';
 import 'detectors/dangerous_operator_detector.dart';
 import 'detectors/destructive_command_detector.dart';
@@ -51,6 +52,7 @@ final class SecurityAnalyzer {
     RemoteExecDetector(),
     PathTraversalDetector(),
     EnvExpansionDetector(),
+    BenignRedirectionDetector(),
   ];
 
   /// Runs all [detectors] over [context] and aggregates the result.

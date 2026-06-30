@@ -134,6 +134,72 @@ void main() {
         isTrue,
       );
     });
+
+    test('stderr-to-stdout merge 2>&1 is a single clean redirection', () {
+      final result = bash.parse('cmd 2>&1');
+      final inv = result.ast! as CommandInvocation;
+      // No phantom `1` command, no spurious diagnostic.
+      expect(inv.executable, 'cmd');
+      expect(inv.arguments, isEmpty);
+      expect(result.diagnostics, isEmpty);
+      expect(inv.redirections, hasLength(1));
+      expect(inv.redirections.first.type, RedirectionType.mergeStreams);
+      expect(inv.redirections.first.target, '2>&1');
+    });
+
+    test('stdout-to-stderr merge 1>&2', () {
+      final inv = ast('cmd 1>&2') as CommandInvocation;
+      expect(inv.executable, 'cmd');
+      expect(inv.redirections.first.type, RedirectionType.mergeStreams);
+      expect(inv.redirections.first.target, '1>&2');
+    });
+
+    test('bare >&2 merge', () {
+      final inv = ast('cmd >&2') as CommandInvocation;
+      expect(inv.redirections.first.type, RedirectionType.mergeStreams);
+      expect(inv.redirections.first.target, '>&2');
+    });
+
+    test('close-fd >&- merge', () {
+      final inv = ast('cmd >&-') as CommandInvocation;
+      expect(inv.redirections.first.type, RedirectionType.mergeStreams);
+      expect(inv.redirections.first.target, '>&-');
+    });
+
+    test('combined redirect &>file', () {
+      final inv = ast('cmd &> out.log') as CommandInvocation;
+      expect(inv.redirections.first.type, RedirectionType.combinedOutput);
+      expect(inv.redirections.first.target, 'out.log');
+    });
+
+    test('combined append &>>file', () {
+      final inv = ast('cmd &>> out.log') as CommandInvocation;
+      expect(inv.redirections.first.type, RedirectionType.combinedAppendOutput);
+      expect(inv.redirections.first.target, 'out.log');
+    });
+
+    test('discard to /dev/null parses with the real target', () {
+      final inv = ast('cmd 2> /dev/null') as CommandInvocation;
+      expect(inv.redirections.first.type, RedirectionType.errorOutput);
+      expect(inv.redirections.first.target, '/dev/null');
+    });
+
+    test('canonical discard-everything idiom >/dev/null 2>&1', () {
+      final result = bash.parse('cmd > /dev/null 2>&1');
+      final inv = result.ast! as CommandInvocation;
+      expect(inv.executable, 'cmd');
+      expect(result.diagnostics, isEmpty);
+      expect(inv.redirections, hasLength(2));
+      expect(inv.redirections[0].type, RedirectionType.output);
+      expect(inv.redirections[0].target, '/dev/null');
+      expect(inv.redirections[1].type, RedirectionType.mergeStreams);
+    });
+
+    test('leading digit not followed by > stays an ordinary word', () {
+      final inv = ast('cmd 2foo') as CommandInvocation;
+      expect(inv.arguments, ['2foo']);
+      expect(inv.redirections, isEmpty);
+    });
   });
 
   group('command substitution', () {

@@ -31,6 +31,24 @@ enum RedirectionType {
 
   /// `2>>` — append standard error to a file.
   appendErrorOutput,
+
+  /// File-descriptor duplication that merges one stream into another, e.g.
+  /// `2>&1` (stderr → stdout), `1>&2` (stdout → stderr), `>&2`, or `>&-`
+  /// (close fd). No file is written, so this is an innocuous no-op for the
+  /// filesystem. [RedirectionNode.target] holds the redirection as written
+  /// (e.g. `2>&1`).
+  ///
+  /// Only single-digit file descriptors are modelled; multi-digit fds such as
+  /// `12>&3` are not recognised as merges.
+  mergeStreams,
+
+  /// `&>file` / `>&file` — truncate-and-write both stdout and stderr to a
+  /// file. Writes the file just like [output].
+  combinedOutput,
+
+  /// `&>>file` — append both stdout and stderr to a file. Writes the file
+  /// just like [appendOutput].
+  combinedAppendOutput,
 }
 
 /// The root of the typed command abstract-syntax tree (AST).

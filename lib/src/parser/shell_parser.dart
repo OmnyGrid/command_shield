@@ -75,6 +75,9 @@ enum _TokenType {
   redirHereDoc, // <<
   redirErr, // 2>
   redirErrAppend, // 2>>
+  redirMerge, // fd duplication: 2>&1, 1>&2, >&2, >&-
+  redirCombined, // &>file, >&file
+  redirCombinedAppend, // &>>file
 }
 
 class _Token {
@@ -92,6 +95,9 @@ class _Token {
   final List<CommandSubstitution> substitutions;
   final List<EnvironmentVariableReference> environmentReferences;
 
+  /// Redirection operators that take a following filename word as their target.
+  /// [_TokenType.redirMerge] is excluded: it is self-contained (the fd target
+  /// is embedded in its value) and is handled separately by the parser.
   bool get isRedirection => const {
     _TokenType.redirOut,
     _TokenType.redirAppend,
@@ -99,6 +105,8 @@ class _Token {
     _TokenType.redirHereDoc,
     _TokenType.redirErr,
     _TokenType.redirErrAppend,
+    _TokenType.redirCombined,
+    _TokenType.redirCombinedAppend,
   }.contains(type);
 
   RedirectionType get redirectionType => switch (type) {
@@ -108,6 +116,9 @@ class _Token {
     _TokenType.redirHereDoc => RedirectionType.hereDocument,
     _TokenType.redirErr => RedirectionType.errorOutput,
     _TokenType.redirErrAppend => RedirectionType.appendErrorOutput,
+    _TokenType.redirMerge => RedirectionType.mergeStreams,
+    _TokenType.redirCombined => RedirectionType.combinedOutput,
+    _TokenType.redirCombinedAppend => RedirectionType.combinedAppendOutput,
     _ => RedirectionType.output,
   };
 }
@@ -168,10 +179,28 @@ class _ShellTokenizer {
           _pos += 2;
           return _Token(_TokenType.and, '&&', start);
         }
+        // `&>`/`&>>` (bash): redirect both stdout and stderr to a file.
+        if (_peek(1) == '>') {
+          if (_peek(2) == '>') {
+            _pos += 3;
+            return _Token(_TokenType.redirCombinedAppend, '&>>', start);
+          }
+          _pos += 2;
+          return _Token(_TokenType.redirCombined, '&>', start);
+        }
         // A lone `&` (background) is treated as a sequential separator.
         _pos++;
         return _Token(_TokenType.semicolon, '&', start);
       case '>':
+        // `>&` is either fd duplication (`>&1`, `>&-`) or, when followed by a
+        // filename, the bash combined redirect `>&file`.
+        if (_peek(1) == '&') {
+          _pos++; // move onto the `&`
+          final dup = _tryReadFdDup(start, prefix: '>');
+          if (dup != null) return dup;
+          _pos++; // consume the `&`; the filename follows as a word target.
+          return _Token(_TokenType.redirCombined, '>&', start);
+        }
         if (_peek(1) == '>') {
           _pos += 2;
           return _Token(_TokenType.redirAppend, '>>', start);
@@ -185,20 +214,78 @@ class _ShellTokenizer {
         }
         _pos++;
         return _Token(_TokenType.redirIn, '<', start);
+      case '0':
+      case '1':
       case '2':
-        if (_peek(1) == '>') {
-          if (_peek(2) == '>') {
-            _pos += 3;
-            return _Token(_TokenType.redirErrAppend, '2>>', start);
-          }
-          _pos += 2;
-          return _Token(_TokenType.redirErr, '2>', start);
-        }
+        // A leading single-digit fd is an operator only when immediately
+        // followed by `>` (e.g. `2>`, `1>&2`); otherwise it is an ordinary
+        // word character handled by `_scanWord` (e.g. `2foo`, `0 > x`).
+        if (_peek(1) == '>') return _readFdRedirect(start, fd: ch);
         return null;
       default:
         return null;
     }
   }
+
+  /// Parses a file-descriptor redirection that begins with an explicit fd
+  /// digit, with `_pos` on the digit and `_peek(1) == '>'`. Handles fd
+  /// duplication (`2>&1`), append (`2>>`), and plain (`2>`) forms.
+  _Token _readFdRedirect(int start, {required String fd}) {
+    // `fd>&…` — duplication or `fd>&file` combined redirect.
+    if (_peek(2) == '&') {
+      _pos += 2; // move onto the `&`
+      final dup = _tryReadFdDup(start, prefix: '$fd>');
+      if (dup != null) return dup;
+      _pos++; // consume the `&`; the filename follows as a word target.
+      return _Token(_TokenType.redirCombined, '$fd>&', start);
+    }
+    final isErr = fd == '2';
+    if (_peek(2) == '>') {
+      _pos += 3;
+      return _Token(
+        isErr ? _TokenType.redirErrAppend : _TokenType.redirAppend,
+        '$fd>>',
+        start,
+      );
+    }
+    _pos += 2;
+    return _Token(
+      isErr ? _TokenType.redirErr : _TokenType.redirOut,
+      '$fd>',
+      start,
+    );
+  }
+
+  /// With `_pos` on the `&` of a `…>&…` redirection, returns a [_TokenType
+  /// .redirMerge] token when a valid fd reference (digits or `-`) terminated by
+  /// a word boundary follows, consuming it. Returns `null` when what follows is
+  /// not a clean fd reference (e.g. `>&file`), leaving `_pos` unchanged.
+  _Token? _tryReadFdDup(int start, {required String prefix}) {
+    final after = _peek(1);
+    if (after == null) return null;
+    if (after == '-') {
+      if (_isFdBoundary(_peek(2))) {
+        _pos += 2; // consume `&-`
+        return _Token(_TokenType.redirMerge, '$prefix&-', start);
+      }
+      return null;
+    }
+    if (!_isDigit(after)) return null;
+    var ahead = 1;
+    final digits = StringBuffer();
+    while (_isDigit(_peek(ahead))) {
+      digits.write(_peek(ahead));
+      ahead++;
+    }
+    if (!_isFdBoundary(_peek(ahead))) return null;
+    _pos += ahead; // consume `&` plus the fd digits
+    return _Token(_TokenType.redirMerge, '$prefix&$digits', start);
+  }
+
+  static bool _isDigit(String? ch) =>
+      ch != null && ch.codeUnitAt(0) >= 0x30 && ch.codeUnitAt(0) <= 0x39;
+
+  static bool _isFdBoundary(String? ch) => ch == null || _isWordTerminator(ch);
 
   static bool _isWordTerminator(String ch) =>
       ch == ' ' ||
@@ -563,6 +650,18 @@ class _TokenParser {
         words.add(tok);
         subs.addAll(tok.substitutions);
         envs.addAll(tok.environmentReferences);
+        _i++;
+        continue;
+      }
+      if (tok.type == _TokenType.redirMerge) {
+        // Fd duplication (`2>&1`, `>&-`, …) carries its own target; it does not
+        // consume a following word and is never target-less.
+        redirections.add(
+          RedirectionNode(
+            type: RedirectionType.mergeStreams,
+            target: tok.value,
+          ),
+        );
         _i++;
         continue;
       }

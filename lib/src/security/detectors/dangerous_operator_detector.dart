@@ -46,6 +46,24 @@ final class DangerousOperatorDetector extends SecurityDetector {
             i += 2;
             continue;
           }
+          // `&>`/`&>>` (bash): redirect both streams to a file. Treat as a
+          // redirection, not chaining, and consume the `>` so it is not
+          // re-scanned as a separate output redirection.
+          if (next == '>') {
+            if (i + 2 < n && s[i + 2] == '>') {
+              add(
+                '&>>',
+                SecurityLevel.lowRisk,
+                'Combined-append redirection',
+                i,
+              );
+              i += 3;
+            } else {
+              add('&>', SecurityLevel.lowRisk, 'Combined redirection', i);
+              i += 2;
+            }
+            continue;
+          }
         case '|':
           if (next == '|') {
             add('||', SecurityLevel.mediumRisk, 'Conditional-OR chaining', i);
@@ -56,6 +74,19 @@ final class DangerousOperatorDetector extends SecurityDetector {
         case ';':
           add(';', SecurityLevel.mediumRisk, 'Sequential chaining', i);
         case '>':
+          // `>&` is fd duplication (`2>&1`, `>&-`) or a combined redirect
+          // (`>&file`). Fd duplication writes no file and is innocuous — the
+          // benign-redirection detector records it — so emit nothing here.
+          if (next == '&') {
+            final afterAmp = i + 2 < n ? s[i + 2] : '';
+            if (afterAmp == '-' || _isDigit(afterAmp)) {
+              i += 2; // skip `>&`; following fd digits are harmless chars
+              continue;
+            }
+            add('>&', SecurityLevel.lowRisk, 'Combined redirection', i);
+            i += 2;
+            continue;
+          }
           if (next == '>') {
             add('>>', SecurityLevel.lowRisk, 'Append redirection', i);
             i += 2;
@@ -74,4 +105,7 @@ final class DangerousOperatorDetector extends SecurityDetector {
     }
     return findings;
   }
+
+  static bool _isDigit(String ch) =>
+      ch.length == 1 && ch.codeUnitAt(0) >= 0x30 && ch.codeUnitAt(0) <= 0x39;
 }

@@ -37,7 +37,17 @@ final class WindowsCmdParser extends CommandParser {
   }
 }
 
-enum _CmdTokenType { word, pipe, and, or, amp, redirOut, redirAppend, redirIn }
+enum _CmdTokenType {
+  word,
+  pipe,
+  and,
+  or,
+  amp,
+  redirOut,
+  redirAppend,
+  redirIn,
+  redirMerge, // fd duplication: 2>&1, 1>&2, >&1
+}
 
 class _CmdToken {
   _CmdToken(
@@ -60,6 +70,7 @@ class _CmdToken {
   RedirectionType get redirectionType => switch (type) {
     _CmdTokenType.redirAppend => RedirectionType.appendOutput,
     _CmdTokenType.redirIn => RedirectionType.input,
+    _CmdTokenType.redirMerge => RedirectionType.mergeStreams,
     _ => RedirectionType.output,
   };
 }
@@ -103,7 +114,17 @@ class _CmdTokenizer {
           }
           continue;
         case '>':
-          if (_peek(1) == '>') {
+          if (_peek(1) == '&') {
+            final gtStart = _pos;
+            _pos++; // move onto the `&`
+            final dup = _tryReadFdDup(gtStart, '>');
+            if (dup != null) {
+              tokens.add(dup);
+            } else {
+              _pos++; // consume `&`; the filename follows as a word target.
+              tokens.add(_CmdToken(_CmdTokenType.redirOut, '>&', gtStart));
+            }
+          } else if (_peek(1) == '>') {
             tokens.add(_CmdToken(_CmdTokenType.redirAppend, '>>', _pos));
             _pos += 2;
           } else {
@@ -114,6 +135,17 @@ class _CmdTokenizer {
         case '<':
           tokens.add(_CmdToken(_CmdTokenType.redirIn, '<', _pos));
           _pos++;
+          continue;
+        case '0':
+        case '1':
+        case '2':
+          // A leading single-digit fd is a redirection only when immediately
+          // followed by `>` (e.g. `2>&1`); otherwise it is a normal word.
+          if (_peek(1) == '>') {
+            tokens.add(_readFdRedirect());
+            continue;
+          }
+          tokens.add(_scanWord());
           continue;
         default:
           tokens.add(_scanWord());
@@ -131,6 +163,58 @@ class _CmdTokenizer {
       ch == '&' ||
       ch == '>' ||
       ch == '<';
+
+  static bool _isDigit(String? ch) =>
+      ch != null && ch.codeUnitAt(0) >= 0x30 && ch.codeUnitAt(0) <= 0x39;
+
+  static bool _isFdBoundary(String? ch) => ch == null || _isTerminator(ch);
+
+  /// Parses a redirection that begins with an explicit fd digit, with `_pos`
+  /// on the digit and `_peek(1) == '>'`. Handles fd duplication (`2>&1`),
+  /// append (`2>>`) and plain (`2>`) forms. `cmd` does not model a separate
+  /// stderr stream, so non-merge forms collapse to output redirection.
+  _CmdToken _readFdRedirect() {
+    final start = _pos;
+    final fd = input[_pos];
+    if (_peek(2) == '&') {
+      _pos += 2; // move onto the `&`
+      final dup = _tryReadFdDup(start, '$fd>');
+      if (dup != null) return dup;
+      _pos++; // consume `&`; the filename follows as a word target.
+      return _CmdToken(_CmdTokenType.redirOut, '$fd>&', start);
+    }
+    if (_peek(2) == '>') {
+      _pos += 3;
+      return _CmdToken(_CmdTokenType.redirAppend, '$fd>>', start);
+    }
+    _pos += 2;
+    return _CmdToken(_CmdTokenType.redirOut, '$fd>', start);
+  }
+
+  /// With `_pos` on the `&` of a `…>&…` redirection, returns a
+  /// [_CmdTokenType.redirMerge] token when a valid fd reference (digits or `-`)
+  /// terminated by a word boundary follows, consuming it. Returns `null`
+  /// otherwise, leaving `_pos` on the `&`.
+  _CmdToken? _tryReadFdDup(int start, String prefix) {
+    final after = _peek(1);
+    if (after == '-') {
+      if (_isFdBoundary(_peek(2))) {
+        _pos += 2; // consume `&-`
+        return _CmdToken(_CmdTokenType.redirMerge, '$prefix&-', start);
+      }
+      return null;
+    }
+    if (!_isDigit(after)) return null;
+    var ahead = 1;
+    final digits = StringBuffer();
+    while (_isDigit(_peek(ahead))) {
+      digits.write(_peek(ahead));
+      ahead++;
+    }
+    if (!_isFdBoundary(_peek(ahead))) return null;
+    _pos += ahead; // consume `&` plus the fd digits
+    return _CmdToken(_CmdTokenType.redirMerge, '$prefix&$digits', start);
+  }
 
   _CmdToken _scanWord() {
     final start = _pos;
@@ -244,6 +328,17 @@ class _CmdTokenParser {
       if (tok.type == _CmdTokenType.word) {
         words.add(tok);
         envs.addAll(tok.environmentReferences);
+        _i++;
+        continue;
+      }
+      if (tok.type == _CmdTokenType.redirMerge) {
+        // Fd duplication (`2>&1`) carries its own target and consumes no word.
+        redirections.add(
+          RedirectionNode(
+            type: RedirectionType.mergeStreams,
+            target: tok.value,
+          ),
+        );
         _i++;
         continue;
       }
